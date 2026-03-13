@@ -1,7 +1,4 @@
-// TODO [FE2-18a] @Luka — Routing za klijentske stranice
-// TODO [FE2-18b] @Luka — Routing za employee portale
-// TODO [FE2-18b] @Luka — Uskladiti route alias-e sa sprint tabelom
-import { Routes, Route } from 'react-router-dom';
+﻿import { Routes, Route } from 'react-router-dom';
 
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
@@ -93,15 +90,15 @@ export default function App() {
           </Route>
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/accounts/new" element={<CreateAccountPage />} />
-            {/* TODO [FE2-18b] @Luka — Dodati alias /employee/create-account koji vodi na isti ekran */}
+            <Route path="/employee/create-account" element={<CreateAccountPage />} />
           </Route>
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/cards" element={<AccountCardsPage />} />
-            {/* TODO [FE2-18b] @Luka — Dodati route /employee/accounts/:id/cards (spec/task parity) */}
+            <Route path="/employee/accounts/:id/cards" element={<AccountCardsPage />} />
           </Route>
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/clients" element={<ClientsPortalPage />} />
-            {/* TODO [FE2-18b] @Luka — Dodati route /employee/clients/:id (spec/task parity) */}
+            <Route path="/employee/clients/:id" element={<ClientsPortalPage />} />
           </Route>
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/loan-requests" element={<LoanRequestsPage />} />
@@ -117,3 +114,5 @@ export default function App() {
     </Routes>
   );
 }
+
+

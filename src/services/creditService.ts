@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 import type {
   Loan,
   LoanApplicationRequest,
@@ -8,7 +8,6 @@ import type {
 } from '../types/celina2';
 import type { PaginatedResponse } from '../types';
 
-// TODO [FE2-17b] @Luka — API servisi za Celinu 2
 // FIXME: Potvrditi endpoint-e sa backend timom kad budu gotovi
 
 export const creditService = {
@@ -72,3 +71,5 @@ export const creditService = {
     return response.data;
   },
 };
+
+

@@ -1,4 +1,4 @@
-// TODO [FE2-18c] @Antonije — Komponenta: Sidebar navigacija za klijente
+﻿// TODO [FE2-18c] @Antonije - Komponenta: Sidebar navigacija za klijente
 //
 // Sidebar koji se prikazuje na levoj strani za ulogovane klijente.
 // Sadrzi linkove ka svim klijentskim stranicama.
@@ -7,10 +7,8 @@
 // - Responsive: na mobilnom se sklapa u hamburger menu
 // - Koristiti react-router-dom NavLink za active state
 
-import { NavLink } from 'react-router-dom';
-
 export default function ClientSidebar() {
-  // TODO [FE2-18c] @Antonije — Navigacioni linkovi
+  // TODO [FE2-18c] @Antonije - Navigacioni linkovi
   // Definisati niz linkova:
   // - Pocetna (/home)
   // - Racuni (/accounts)
@@ -32,7 +30,7 @@ export default function ClientSidebar() {
   return (
     <aside className="w-64 border-r bg-muted/40 min-h-screen p-4">
       <nav className="space-y-2">
-        {/* TODO [FE2-18c] @Antonije — Klijentski linkovi
+        {/* TODO [FE2-18c] @Antonije - Klijentski linkovi
             - NavLink za svaku stavku
             - className sa active state: bg-primary/10 kad je aktivna
             - Ikone ispred teksta (lucide-react)
@@ -42,3 +40,4 @@ export default function ClientSidebar() {
     </aside>
   );
 }
+

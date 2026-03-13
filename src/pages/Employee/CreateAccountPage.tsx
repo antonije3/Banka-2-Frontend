@@ -1,6 +1,3 @@
-// TODO [FE2-13a] @Luka — Kreiranje racuna - tekuci
-// TODO [FE2-13b] @Luka — Kreiranje racuna - devizni
-// TODO [FE2-13c] @Luka — Kreiranje racuna - poslovni flow (firma)
 //
 // Ova stranica je dostupna samo zaposlenima (employee/admin).
 // Omogucava kreiranje novog bankovnog racuna za klijenta.
@@ -13,49 +10,314 @@
 // - accountService.create(data)
 // - Spec: "Kreiranje racuna" iz Celine 2 (employee section)
 
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'react-toastify';
+import { accountService } from '@/services/accountService';
+import { clientService } from '@/services/clientService';
+import type { Client } from '@/types';
+import type { AccountSubtype, Currency } from '@/types/celina2';
+import {
+  createAccountSchema,
+  type CreateAccountFormData,
+} from '@/utils/validationSchemas.celina2';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 export default function CreateAccountPage() {
-  // TODO [FE2-13a] @Luka — Setup forme
-  // TODO [FE2-13b] @Luka — Setup forme
-  // TODO [FE2-13c] @Luka — Setup forme
-  // useForm<CreateAccountFormData>({ resolver: zodResolver(createAccountSchema) })
-  // watch('accountType') za condicionalno prikazivanje poslovnih polja i podvrsta
-  // clientService.search(query) za autocomplete vlasnika
+  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [clientSuggestions, setClientSuggestions] = useState<Client[]>([]);
+  const [isSearchingClient, setIsSearchingClient] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<CreateAccountFormData>({
+    resolver: zodResolver(createAccountSchema),
+    defaultValues: {
+      ownerEmail: '',
+      accountType: 'TEKUCI',
+      accountSubtype: 'STANDARDNI',
+      currency: 'RSD',
+      initialDeposit: undefined,
+      createCard: false,
+      companyName: '',
+      registrationNumber: '',
+      taxId: '',
+      activityCode: '',
+      firmAddress: '',
+      firmCity: '',
+      firmCountry: '',
+    },
+  });
+
+  const accountType = watch('accountType');
+  const ownerEmail = watch('ownerEmail');
+
+  const subtypeOptions = useMemo(() => {
+    if (accountType === 'POSLOVNI') {
+      return [
+        { value: 'DOO', label: 'DOO' },
+        { value: 'AD', label: 'AD' },
+        { value: 'FONDACIJA', label: 'Fondacija' },
+      ];
+    }
+
+    return [
+      { value: 'STANDARDNI', label: 'Standardni' },
+      { value: 'STEDNI', label: 'Štedni' },
+      { value: 'PENZIONERSKI', label: 'Penzionerski' },
+      { value: 'ZA_MLADE', label: 'Za mlade' },
+      { value: 'STUDENTSKI', label: 'Studentski' },
+      { value: 'ZA_NEZAPOSLENE', label: 'Za nezaposlene' },
+    ];
+  }, [accountType]);
+
+  const currencyOptions = useMemo(() => {
+    if (accountType === 'TEKUCI') return ['RSD'];
+    if (accountType === 'DEVIZNI') return ['EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'];
+    return ['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'];
+  }, [accountType]);
+
+  useEffect(() => {
+    if (accountType === 'TEKUCI') {
+      setValue('currency', 'RSD');
+      setValue('accountSubtype', 'STANDARDNI');
+      return;
+    }
+    if (accountType === 'DEVIZNI') {
+      setValue('currency', 'EUR');
+      setValue('accountSubtype', 'STANDARDNI');
+      return;
+    }
+
+    setValue('currency', 'RSD');
+    setValue('accountSubtype', 'DOO');
+  }, [accountType, setValue]);
+
+  useEffect(() => {
+    const query = ownerEmail?.trim() || '';
+    if (query.length < 3) {
+      setClientSuggestions([]);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setIsSearchingClient(true);
+      try {
+        const clients = await clientService.search(query);
+        setClientSuggestions(clients.slice(0, 5));
+      } catch {
+        setClientSuggestions([]);
+      } finally {
+        setIsSearchingClient(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [ownerEmail]);
+
+  const onSubmit = async (data: CreateAccountFormData) => {
+    setIsSubmitting(true);
+    try {
+      await accountService.create({
+        ownerEmail: data.ownerEmail,
+        accountType: data.accountType,
+        accountSubtype: data.accountSubtype as AccountSubtype,
+        currency: data.currency as Currency,
+        initialDeposit: data.initialDeposit,
+        createCard: data.createCard,
+        companyName: data.accountType === 'POSLOVNI' ? data.companyName : undefined,
+        registrationNumber: data.accountType === 'POSLOVNI' ? data.registrationNumber : undefined,
+        taxId: data.accountType === 'POSLOVNI' ? data.taxId : undefined,
+        activityCode: data.accountType === 'POSLOVNI' ? data.activityCode : undefined,
+        firmAddress: data.accountType === 'POSLOVNI' ? data.firmAddress : undefined,
+        firmCity: data.accountType === 'POSLOVNI' ? data.firmCity : undefined,
+        firmCountry: data.accountType === 'POSLOVNI' ? data.firmCountry : undefined,
+      });
+
+      toast.success('Račun uspešno kreiran.');
+      navigate('/employee/accounts');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Kreiranje računa nije uspelo.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
       <h1 className="text-3xl font-bold mb-6">Kreiranje računa</h1>
 
-      {/* TODO [FE2-13a] @Luka — Forma za kreiranje tekuceg racuna
-          Polja:
-          1. Email vlasnika - Input sa autocomplete (clientService.search za predloge)
-          2. Tip racuna - Select (TEKUCI, DEVIZNI, POSLOVNI)
-          3. Podvrsta racuna - Select (zavisi od tipa):
-             - TEKUCI: Standardni, Stedni, Penzionerski, Za mlade, Studentski, Za nezaposlene
-             - DEVIZNI: Standardni, Stedni, Penzionerski, Za mlade, Studentski, Za nezaposlene
-             - POSLOVNI: DOO, AD, Fondacija
-          4. Valuta - Select:
-             - TEKUCI => samo RSD (disabled)
-             - DEVIZNI => EUR, CHF, USD, GBP, JPY, CAD, AUD
-             - POSLOVNI => RSD + devizne valute
-          5. Inicijalni depozit - Input number (opciono)
-          6. Napravi karticu - Checkbox (createCard boolean)
+      <Card>
+        <CardHeader>
+          <CardTitle>Novi račun</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <div className="space-y-2">
+              <Label htmlFor="ownerEmail">Email vlasnika</Label>
+              <Input id="ownerEmail" {...register('ownerEmail')} placeholder="ime.prezime@email.com" />
+              {errors.ownerEmail && <p className="text-sm text-destructive">{errors.ownerEmail.message}</p>}
+              {isSearchingClient && <p className="text-xs text-muted-foreground">Pretraga klijenata...</p>}
+              {clientSuggestions.length > 0 && (
+                <div className="border rounded-md p-2 space-y-1 bg-background">
+                  {clientSuggestions.map((client) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      className="w-full text-left text-sm px-2 py-1 rounded hover:bg-muted"
+                      onClick={() => {
+                        setValue('ownerEmail', client.email, { shouldValidate: true, shouldDirty: true });
+                        setClientSuggestions([]);
+                      }}
+                    >
+                      {client.firstName} {client.lastName} | {client.email}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          FE2-13c (poslovni flow): podaci firme
-          Condicionalna polja (prikazati samo kad je tip = POSLOVNI):
-          7. Naziv firme - Input
-          8. Maticni broj - Input
-          9. PIB - Input
-          10. Sifra delatnosti - Input (format xx.xx, sa validacijom)
-          11. Adresa firme - Input
-          12. Grad - Input
-          13. Drzava - Input
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="accountType">Tip računa</Label>
+                <select
+                  id="accountType"
+                  title="Tip računa"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('accountType')}
+                >
+                  <option value="TEKUCI">Tekući</option>
+                  <option value="DEVIZNI">Devizni</option>
+                  <option value="POSLOVNI">Poslovni</option>
+                </select>
+              </div>
 
-          FE2-13b (devizni flow): dozvoljene valute EUR/CHF/USD/GBP/JPY/CAD/AUD
-          Submit: accountService.create(data)
-          Na uspeh: toast "Racun uspesno kreiran" + navigate('/employee/accounts') */}
-      <form className="space-y-6">
-        <p className="text-muted-foreground">Implementirati formu za kreiranje racuna...</p>
-      </form>
+              <div className="space-y-2">
+                <Label htmlFor="accountSubtype">Podvrsta računa</Label>
+                <select
+                  id="accountSubtype"
+                  title="Podvrsta računa"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('accountSubtype')}
+                >
+                  {subtypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.accountSubtype && <p className="text-sm text-destructive">{errors.accountSubtype.message}</p>}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="currency">Valuta</Label>
+                <select
+                  id="currency"
+                  title="Valuta"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('currency')}
+                  disabled={accountType === 'TEKUCI'}
+                >
+                  {currencyOptions.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
+                  ))}
+                </select>
+                {errors.currency && <p className="text-sm text-destructive">{errors.currency.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="initialDeposit">Inicijalni depozit</Label>
+                <Input
+                  id="initialDeposit"
+                  type="number"
+                  step="0.01"
+                  {...register('initialDeposit', {
+                    setValueAs: (value) => (value === '' ? undefined : Number(value)),
+                  })}
+                />
+                {errors.initialDeposit && <p className="text-sm text-destructive">{errors.initialDeposit.message}</p>}
+              </div>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" {...register('createCard')} />
+              Napravi karticu uz račun
+            </label>
+
+            {accountType === 'POSLOVNI' && (
+              <div className="space-y-4 border rounded-md p-4">
+                <h3 className="font-semibold">Podaci firme</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Naziv firme</Label>
+                    <Input id="companyName" {...register('companyName')} />
+                    {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="registrationNumber">Matični broj</Label>
+                    <Input id="registrationNumber" {...register('registrationNumber')} />
+                    {errors.registrationNumber && <p className="text-sm text-destructive">{errors.registrationNumber.message}</p>}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="taxId">PIB</Label>
+                    <Input id="taxId" {...register('taxId')} />
+                    {errors.taxId && <p className="text-sm text-destructive">{errors.taxId.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="activityCode">Šifra delatnosti</Label>
+                    <Input id="activityCode" {...register('activityCode')} placeholder="62.01" />
+                    {errors.activityCode && <p className="text-sm text-destructive">{errors.activityCode.message}</p>}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="firmAddress">Adresa firme</Label>
+                    <Input id="firmAddress" {...register('firmAddress')} />
+                    {errors.firmAddress && <p className="text-sm text-destructive">{errors.firmAddress.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="firmCity">Grad</Label>
+                    <Input id="firmCity" {...register('firmCity')} />
+                    {errors.firmCity && <p className="text-sm text-destructive">{errors.firmCity.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="firmCountry">Država</Label>
+                    <Input id="firmCountry" {...register('firmCountry')} />
+                    {errors.firmCountry && <p className="text-sm text-destructive">{errors.firmCountry.message}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Kreiranje...' : 'Kreiraj račun'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
+

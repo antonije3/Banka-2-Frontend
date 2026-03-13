@@ -76,11 +76,11 @@ export default function DashboardPage() {
           Dobrodošli, {user?.firstName}!
         </h1>
         <p className="text-muted-foreground">
-          Banka 2025 — Interni portal
+          Banka 2025 - Interni portal
         </p>
       </div>
 
-      {/* Statistics Section — samo za admine */}
+      {/* Statistics Section - samo za admine */}
       {isAdmin && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
           <Card>
@@ -149,3 +149,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

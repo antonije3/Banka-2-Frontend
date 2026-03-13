@@ -1,7 +1,6 @@
-import api from './api';
+﻿import api from './api';
 import type { ExchangeRate, ExchangeRequest } from '../types/celina2';
 
-// TODO [FE2-17b] @Luka — API servisi za Celinu 2
 // FIXME: Potvrditi endpoint-e sa backend timom kad budu gotovi
 
 export const currencyService = {
@@ -23,3 +22,5 @@ export const currencyService = {
     return response.data;
   },
 };
+
+

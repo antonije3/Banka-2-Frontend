@@ -1,5 +1,5 @@
-// TODO [FE2-09a] @Antonije — Menjacnica: Kursna lista
-// TODO [FE2-09b] @Antonije — Menjacnica: Kalkulator konverzije
+// TODO [FE2-09a] @Antonije - Menjacnica: Kursna lista
+// TODO [FE2-09b] @Antonije - Menjacnica: Kalkulator konverzije
 //
 // Ova stranica prikazuje kursnu listu i omogucava konverziju valuta.
 // - currencyService.getExchangeRates() za kursnu listu
@@ -9,44 +9,183 @@
 // - Spec: "Menjacnica" iz Celine 2
 // - Bazna valuta: RSD
 
-export default function ExchangePage() {
-  // TODO [FE2-09a] @Antonije — Fetch kursne liste
-  // useState za exchangeRates, loading
-  // currencyService.getExchangeRates()
+import { useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'react-toastify';
+import { accountService } from '@/services/accountService';
+import { currencyService } from '@/services/currencyService';
+import type { Account, ExchangeRate } from '@/types/celina2';
+import { exchangeSchema, type ExchangeFormData } from '@/utils/validationSchemas.celina2';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 
-  // TODO [FE2-09b] @Antonije — Forma za konverziju
-  // useForm<ExchangeFormData>({ resolver: zodResolver(exchangeSchema) })
-  // useState za conversionResult
+export default function ExchangePage() {
+  const [rates, setRates] = useState<ExchangeRate[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<{ convertedAmount: number; rate: number } | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<ExchangeFormData>({
+    resolver: zodResolver(exchangeSchema),
+    defaultValues: {
+      fromCurrency: 'EUR',
+      toCurrency: 'RSD',
+      amount: 0,
+      accountNumber: '',
+    },
+  });
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [exchangeRates, myAccounts] = await Promise.all([
+          currencyService.getExchangeRates(),
+          accountService.getMyAccounts(),
+        ]);
+        setRates(exchangeRates);
+        setAccounts(myAccounts);
+        if (myAccounts.length > 0) {
+          setValue('accountNumber', myAccounts[0].accountNumber);
+        }
+      } catch {
+        toast.error('Neuspešno učitavanje kursne liste.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [setValue]);
+
+  const fromCurrency = watch('fromCurrency');
+  const eligibleAccounts = useMemo(
+    () => accounts.filter((account) => account.currency === fromCurrency),
+    [accounts, fromCurrency]
+  );
+
+  useEffect(() => {
+    if (eligibleAccounts.length > 0) {
+      setValue('accountNumber', eligibleAccounts[0].accountNumber);
+    } else {
+      setValue('accountNumber', '');
+    }
+  }, [eligibleAccounts, setValue]);
+
+  const onSubmit = async (data: ExchangeFormData) => {
+    try {
+      const conversion = await currencyService.convert({
+        fromCurrency: data.fromCurrency as never,
+        toCurrency: data.toCurrency as never,
+        amount: data.amount,
+        accountNumber: data.accountNumber,
+      });
+      setResult(conversion);
+    } catch {
+      toast.error('Konverzija nije uspela.');
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <h1 className="text-3xl font-bold">Menjačnica</h1>
 
-      {/* TODO [FE2-09a] @Antonije — Kursna lista tabela
-          - Tabela sa kolonama: Valuta | Kupovni kurs | Prodajni kurs | Srednji kurs
-          - Valute: EUR, CHF, USD, GBP, JPY, CAD, AUD
-          - Bazna valuta = RSD
-          - Formatiranje brojeva na 4 decimale
-          - Datum kursa */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Kursna lista</h2>
-        <p className="text-muted-foreground">Implementirati kursnu listu...</p>
+        {loading ? (
+          <p className="text-muted-foreground">Učitavanje kursne liste...</p>
+        ) : (
+          <Card>
+            <CardContent className="pt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Valuta</th>
+                    <th className="text-left py-2">Kupovni kurs</th>
+                    <th className="text-left py-2">Prodajni kurs</th>
+                    <th className="text-left py-2">Srednji kurs</th>
+                    <th className="text-left py-2">Datum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rates.map((rate) => (
+                    <tr key={rate.currency} className="border-b">
+                      <td className="py-2">{rate.currency}</td>
+                      <td className="py-2">{rate.buyRate.toFixed(4)}</td>
+                      <td className="py-2">{rate.sellRate.toFixed(4)}</td>
+                      <td className="py-2">{rate.middleRate.toFixed(4)}</td>
+                      <td className="py-2">{new Date(rate.date).toLocaleDateString('sr-RS')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
-      {/* TODO [FE2-09b] @Antonije — Forma za konverziju
-          Polja:
-          1. Iz valute - Select dropdown
-          2. U valutu - Select dropdown (razlicita od prve)
-          3. Iznos - Input number
-          4. Racun - Select (moji racuni u odgovarajucoj valuti)
-
-          Prikaz rezultata:
-          - "X EUR = Y RSD po kursu Z"
-          - Dugme "Konvertuj" => currencyService.convert(data) */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Konverzija</h2>
-        <p className="text-muted-foreground">Implementirati konverziju...</p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Konverzija</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)} noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="fromCurrency">Iz valute</Label>
+                <select id="fromCurrency" title="Iz valute" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('fromCurrency')}>
+                  {['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'].map((currency) => (
+                    <option key={currency} value={currency}>{currency}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="toCurrency">U valutu</Label>
+                <select id="toCurrency" title="U valutu" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('toCurrency')}>
+                  {['RSD', 'EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'].map((currency) => (
+                    <option key={currency} value={currency}>{currency}</option>
+                  ))}
+                </select>
+                {errors.toCurrency && <p className="text-sm text-destructive">{errors.toCurrency.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="amount">Iznos</Label>
+                <input id="amount" type="number" step="0.01" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('amount', { valueAsNumber: true })} />
+                {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountNumber">Račun</Label>
+                <select id="accountNumber" title="Račun" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register('accountNumber')}>
+                  <option value="">Izaberite račun</option>
+                  {eligibleAccounts.map((account) => (
+                    <option key={account.id} value={account.accountNumber}>{account.accountNumber} ({account.currency})</option>
+                  ))}
+                </select>
+                {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <Button type="submit">Konvertuj</Button>
+              </div>
+            </form>
+
+            {result && (
+              <div className="mt-4 rounded-md border p-3 text-sm">
+                <p>
+                  {watch('amount')} {watch('fromCurrency')} = {result.convertedAmount.toFixed(2)} {watch('toCurrency')} po kursu {result.rate.toFixed(4)}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </section>
     </div>
   );
 }
+

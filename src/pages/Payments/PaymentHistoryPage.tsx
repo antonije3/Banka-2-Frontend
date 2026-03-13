@@ -1,5 +1,5 @@
-// TODO [FE2-07a] @Elena — Placanja: Pregled istorije placanja
-// TODO [FE2-07b] @Elena — Placanja: Filtriranje i sortiranje transakcija
+// TODO [FE2-07a] @Elena - Placanja: Pregled istorije placanja
+// TODO [FE2-07b] @Elena - Placanja: Filtriranje i sortiranje transakcija
 //
 // Ova stranica prikazuje listu svih transakcija/placanja.
 // - transactionService.getAll(filters) sa paginacijom
@@ -11,49 +11,287 @@
 //   (koristiti jsPDF ili react-pdf biblioteku, treba instalirati: npm install jspdf)
 // - URL query params za preselected account (?account=...)
 
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { accountService } from '@/services/accountService';
+import { transactionService } from '@/services/transactionService';
+import type { Account, Transaction, TransactionStatus } from '@/types/celina2';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+function statusClass(status: TransactionStatus): string {
+  if (status === 'COMPLETED') return 'bg-green-100 text-green-700';
+  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
+  if (status === 'REJECTED') return 'bg-red-100 text-red-700';
+  if (status === 'CANCELLED') return 'bg-muted text-muted-foreground';
+  return 'bg-muted text-muted-foreground';
+}
 
 export default function PaymentHistoryPage() {
   const [searchParams] = useSearchParams();
   const preselectedAccount = searchParams.get('account') || '';
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  // TODO [FE2-07a] @Elena — Fetch transakcije sa paginacijom
-  // useState za transactions, loading, pagination, filters
-  // transactionService.getAll(filters)
+  const [accountFilter, setAccountFilter] = useState(preselectedAccount);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [amountMin, setAmountMin] = useState('');
+  const [amountMax, setAmountMax] = useState('');
+  const [page, setPage] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
 
-  // TODO [FE2-07b] @Elena — Filter state
-  // useForm<TransactionFilterFormData>({ resolver: zodResolver(transactionFilterSchema) })
-  // Primena filtera na API poziv
+  useEffect(() => {
+    const loadAccounts = async () => {
+      try {
+        const data = await accountService.getMyAccounts();
+        setAccounts(data);
+      } catch {
+        toast.error('Neuspešno učitavanje računa.');
+      }
+    };
+
+    loadAccounts();
+  }, []);
+
+  useEffect(() => {
+    const loadTransactions = async () => {
+      setLoading(true);
+      try {
+        const response = await transactionService.getAll({
+          accountNumber: accountFilter || undefined,
+          status: (statusFilter || undefined) as TransactionStatus | undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          amountMin: amountMin ? Number(amountMin) : undefined,
+          amountMax: amountMax ? Number(amountMax) : undefined,
+          page,
+          limit,
+        });
+
+        const sorted = [...response.content].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setTransactions(sorted);
+        setTotalPages(Math.max(1, response.totalPages));
+      } catch {
+        toast.error('Neuspešno učitavanje plaćanja.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTransactions();
+  }, [accountFilter, statusFilter, dateFrom, dateTo, amountMin, amountMax, page, limit]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [accountFilter, statusFilter, dateFrom, dateTo, amountMin, amountMax, limit]);
+
+  const resetFilters = () => {
+    setAccountFilter(preselectedAccount);
+    setStatusFilter('');
+    setDateFrom('');
+    setDateTo('');
+    setAmountMin('');
+    setAmountMax('');
+  };
+
+  const printTransaction = (tx: Transaction) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Nije moguće otvoriti prozor za štampu.');
+      return;
+    }
+    printWindow.document.write(`
+      <html>
+        <head><title>Potvrda transakcije #${tx.id}</title></head>
+        <body>
+          <h2>Potvrda transakcije #${tx.id}</h2>
+          <p>Datum: ${new Date(tx.createdAt).toLocaleString('sr-RS')}</p>
+          <p>Sa računa: ${tx.fromAccountNumber}</p>
+          <p>Na račun: ${tx.toAccountNumber}</p>
+          <p>Iznos: ${tx.amount.toFixed(2)} ${tx.currency}</p>
+          <p>Status: ${tx.status}</p>
+          <p>Svrha: ${tx.paymentPurpose}</p>
+          <p>Šifra plaćanja: ${tx.paymentCode}</p>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <h1 className="text-3xl font-bold">Pregled plaćanja</h1>
 
-      {/* TODO [FE2-07b] @Elena — Filter sekcija
-          - Collapsible/accordion sa filterima
-          - Select: racun (iz mojih racuna)
-          - Select: status (PENDING/COMPLETED/REJECTED/CANCELLED)
-          - DateInput: datum od, datum do
-          - Input number: min iznos, max iznos
-          - Dugme: Primeni filtere / Resetuj */}
-      <section>
-        <p className="text-muted-foreground">Implementirati filtere...</p>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Filteri</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="accountFilter">Račun</label>
+            <select
+              id="accountFilter"
+              title="Račun"
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Svi</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.accountNumber}>{account.accountNumber}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* TODO [FE2-07a] @Elena — Tabela transakcija
-          - Kolone: Datum | Racun posiljaoca | Racun primaoca | Iznos | Valuta | Status | Svrha
-          - Badge za status (zeleni=COMPLETED, zuti=PENDING, crveni=REJECTED)
-          - Formatiranje iznosa sa valutom
-          - Sortiranje po datumu (default: najnovije prvo)
-          - Responsive: na mobilnom collapse manje vazne kolone */}
-      <section>
-        <p className="text-muted-foreground">Implementirati tabelu transakcija...</p>
-      </section>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="statusFilter">Status</label>
+            <select
+              id="statusFilter"
+              title="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Svi</option>
+              <option value="PENDING">PENDING</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="REJECTED">REJECTED</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+          </div>
 
-      {/* TODO [FE2-07a] @Elena — Paginacija
-          - Prikazati: "Strana X od Y" i dugmad za navigaciju
-          - Page size selector (10/25/50)
-          - Koristiti PaginatedResponse iz API-ja */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="pageSize">Broj po strani</label>
+            <select
+              id="pageSize"
+              title="Broj po strani"
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="dateFrom">Datum od</label>
+            <input id="dateFrom" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="dateTo">Datum do</label>
+            <input id="dateTo" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="amountMin">Iznos min</label>
+            <input id="amountMin" type="number" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="amountMax">Iznos max</label>
+            <input id="amountMax" type="number" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+
+          <div className="flex items-end">
+            <Button variant="outline" onClick={resetFilters}>Resetuj filtere</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <p className="text-muted-foreground">Učitavanje transakcija...</p>
+      ) : transactions.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6 text-muted-foreground">Nema transakcija za izabrane filtere.</CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="pt-6 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Datum</th>
+                  <th className="text-left py-2">Sa računa</th>
+                  <th className="text-left py-2">Na račun</th>
+                  <th className="text-left py-2">Iznos</th>
+                  <th className="text-left py-2">Status</th>
+                  <th className="text-left py-2">Svrha</th>
+                  <th className="text-left py-2">Akcije</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => (
+                  <>
+                    <tr key={tx.id} className="border-b">
+                      <td className="py-2">{new Date(tx.createdAt).toLocaleString('sr-RS')}</td>
+                      <td className="py-2">{tx.fromAccountNumber}</td>
+                      <td className="py-2">{tx.toAccountNumber}</td>
+                      <td className="py-2">{tx.amount.toFixed(2)} {tx.currency}</td>
+                      <td className="py-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(tx.status)}`}>{tx.status}</span>
+                      </td>
+                      <td className="py-2">{tx.paymentPurpose}</td>
+                      <td className="py-2">
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}>
+                            {expandedId === tx.id ? 'Sakrij' : 'Detalji'}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => printTransaction(tx)}>
+                            Štampaj
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedId === tx.id && (
+                      <tr className="border-b bg-muted/30">
+                        <td className="py-3 px-2" colSpan={7}>
+                          <div className="grid gap-2 md:grid-cols-2 text-sm">
+                            <p>Opis: <span className="font-medium">{tx.description || '-'}</span></p>
+                            <p>Primalac: <span className="font-medium">{tx.recipientName}</span></p>
+                            <p>Šifra plaćanja: <span className="font-medium">{tx.paymentCode}</span></p>
+                            <p>Referentni broj: <span className="font-medium">{tx.referenceNumber || '-'}</span></p>
+                            <p>Model: <span className="font-medium">{tx.model || '-'}</span></p>
+                            <p>Poziv na broj: <span className="font-medium">{tx.callNumber || '-'}</span></p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+                Prethodna
+              </Button>
+              <span className="text-sm text-muted-foreground">Strana {page + 1} / {totalPages}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+              >
+                Sledeća
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
-// TODO [FE2-05a] @Elena — Prenosi: Forma za prenos izmedju racuna
-// TODO [FE2-05b] @Elena — Prenosi: Verifikacija prenosa
-// TODO [FE2-08a] @Antonije — Transferi: Kreiranje transfera
-// TODO [FE2-08b] @Antonije — Transferi: Istorija i prikaz kursa/provizije
+// TODO [FE2-05a] @Elena - Prenosi: Forma za prenos izmedju racuna
+// TODO [FE2-05b] @Elena - Prenosi: Verifikacija prenosa
+// TODO [FE2-08a] @Antonije - Transferi: Kreiranje transfera
+// TODO [FE2-08b] @Antonije - Transferi: Istorija i prikaz kursa/provizije
 //
 // Ova stranica omogucava prenos sredstava izmedju sopstvenih racuna.
 // - Forma: izaberi racun posiljaoca, izaberi racun primaoca, iznos
@@ -11,51 +11,218 @@
 // - Verifikacija putem VerificationModal
 // - Spec: "Interni transfer" iz Celine 2
 
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'react-toastify';
+import { accountService } from '@/services/accountService';
+import { currencyService } from '@/services/currencyService';
+import { transactionService } from '@/services/transactionService';
+import type { Account } from '@/types/celina2';
+import { transferSchema, type TransferFormData } from '@/utils/validationSchemas.celina2';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import VerificationModal from '@/components/shared/VerificationModal';
 
 export default function TransferPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedFrom = searchParams.get('from') || '';
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
+  const [pendingTransactionId, setPendingTransactionId] = useState<number | null>(null);
+  const [exchangePreview, setExchangePreview] = useState<{ rate: number; convertedAmount: number } | null>(null);
 
-  // TODO [FE2-05a] @Elena — Setup forme
-  // useForm<TransferFormData>({ resolver: zodResolver(transferSchema) })
-  // accountService.getMyAccounts() za oba dropdown-a
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<TransferFormData>({
+    resolver: zodResolver(transferSchema),
+    defaultValues: {
+      fromAccountNumber: preselectedFrom,
+      toAccountNumber: '',
+      amount: 0,
+    },
+  });
 
-  // TODO [FE2-08a] @Antonije — State za kurs
-  // useState za exchangePreview (convertedAmount, rate)
-  // Kad se promeni fromAccount ili toAccount, proveriti valute
-  // Ako valute razlicite => currencyService.getRate(fromCurrency, toCurrency)
+  useEffect(() => {
+    let mounted = true;
+    const loadAccounts = async () => {
+      setIsLoading(true);
+      try {
+        const data = await accountService.getMyAccounts();
+        if (!mounted) return;
+        setAccounts(data);
+        if (!preselectedFrom && data.length > 0) {
+          setValue('fromAccountNumber', data[0].accountNumber);
+        }
+      } catch {
+        if (!mounted) return;
+        toast.error('Neuspešno učitavanje računa.');
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
 
-  // TODO [FE2-05b] @Elena — State za verifikaciju
-  // useState za showVerification, pendingTransactionId
+    loadAccounts();
+    return () => {
+      mounted = false;
+    };
+  }, [preselectedFrom, setValue]);
+
+  const fromAccount = watch('fromAccountNumber');
+  const toAccount = watch('toAccountNumber');
+  const amount = watch('amount') || 0;
+
+  const fromAccountData = useMemo(
+    () => accounts.find((account) => account.accountNumber === fromAccount),
+    [accounts, fromAccount]
+  );
+  const toAccountData = useMemo(
+    () => accounts.find((account) => account.accountNumber === toAccount),
+    [accounts, toAccount]
+  );
+
+  const toAccountOptions = useMemo(
+    () => accounts.filter((account) => account.accountNumber !== fromAccount),
+    [accounts, fromAccount]
+  );
+
+  useEffect(() => {
+    if (!fromAccountData || !toAccountData || !amount || amount <= 0) {
+      setExchangePreview(null);
+      return;
+    }
+
+    if (fromAccountData.currency === toAccountData.currency) {
+      setExchangePreview(null);
+      return;
+    }
+
+    const loadRate = async () => {
+      try {
+        const rate = await currencyService.getRate(fromAccountData.currency, toAccountData.currency);
+        setExchangePreview({
+          rate: rate.middleRate,
+          convertedAmount: amount * rate.middleRate,
+        });
+      } catch {
+        setExchangePreview(null);
+      }
+    };
+
+    loadRate();
+  }, [amount, fromAccountData, toAccountData]);
+
+  const onSubmit = async (data: TransferFormData) => {
+    setIsSubmitting(true);
+    try {
+      const transfer = await transactionService.createTransfer(data);
+      setPendingTransactionId(transfer.id);
+      setShowVerification(true);
+      toast.info('Prenos je kreiran. Potrebna je verifikacija.');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Kreiranje prenosa nije uspelo.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
       <h1 className="text-3xl font-bold mb-6">Prenos između računa</h1>
 
-      {/* TODO [FE2-05a] @Elena — Forma za prenos
-          Polja:
-          1. Racun posiljaoca - Select (moji racuni, prikazati stanje i valutu)
-          2. Racun primaoca - Select (moji racuni BEZ izabranog posiljaoca)
-          3. Iznos - Input number
+      <Card>
+        <CardHeader>
+          <CardTitle>Novi prenos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-muted-foreground">Učitavanje računa...</p>
+          ) : (
+            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="fromAccount">Račun pošiljaoca</Label>
+                <select
+                  id="fromAccount"
+                  title="Račun pošiljaoca"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('fromAccountNumber')}
+                >
+                  <option value="">Izaberite račun</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.accountNumber}>
+                      {account.accountNumber} | {account.availableBalance.toFixed(2)} {account.currency}
+                    </option>
+                  ))}
+                </select>
+                {errors.fromAccountNumber && <p className="text-sm text-destructive">{errors.fromAccountNumber.message}</p>}
+              </div>
 
-          Submit handler:
-          - Validacija (zodResolver - racuni moraju biti razliciti)
-          - transactionService.createTransfer(data)
-          - Na uspeh: otvori VerificationModal */}
-      <form className="space-y-4">
-        <p className="text-muted-foreground">Implementirati formu za prenos...</p>
-      </form>
+              <div className="space-y-2">
+                <Label htmlFor="toAccount">Račun primaoca</Label>
+                <select
+                  id="toAccount"
+                  title="Račun primaoca"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('toAccountNumber')}
+                >
+                  <option value="">Izaberite račun</option>
+                  {toAccountOptions.map((account) => (
+                    <option key={account.id} value={account.accountNumber}>
+                      {account.accountNumber} | {account.availableBalance.toFixed(2)} {account.currency}
+                    </option>
+                  ))}
+                </select>
+                {errors.toAccountNumber && <p className="text-sm text-destructive">{errors.toAccountNumber.message}</p>}
+              </div>
 
-      {/* TODO [FE2-08a] @Antonije — Preview konverzije
-          - Prikazati samo kad su valute razlicite
-          - Kartica: "Kurs: 1 EUR = 117.15 RSD"
-          - "Konvertovani iznos: X RSD"
-          - Azurirati kad se promeni iznos ili racuni */}
+              <div className="space-y-2">
+                <Label htmlFor="amount">Iznos</Label>
+                <Input id="amount" type="number" step="0.01" {...register('amount', { valueAsNumber: true })} />
+                {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
+              </div>
 
-      {/* TODO [FE2-05b] @Elena — VerificationModal
-          - <VerificationModal /> iz components/shared
-          - onSuccess => navigate('/accounts') + success toast */}
+              {exchangePreview && fromAccountData && toAccountData && (
+                <div className="rounded-md border p-3 text-sm space-y-1">
+                  <p>
+                    Kurs: 1 {fromAccountData.currency} = {exchangePreview.rate.toFixed(4)} {toAccountData.currency}
+                  </p>
+                  <p>
+                    Konvertovani iznos: {exchangePreview.convertedAmount.toFixed(2)} {toAccountData.currency}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Kreiranje...' : 'Nastavi na verifikaciju'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+
+      <VerificationModal
+        transactionId={pendingTransactionId}
+        isOpen={showVerification}
+        onClose={() => setShowVerification(false)}
+        onSuccess={() => {
+          setShowVerification(false);
+          navigate('/accounts');
+        }}
+      />
     </div>
   );
 }
+

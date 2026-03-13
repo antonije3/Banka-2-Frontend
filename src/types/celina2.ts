@@ -1,5 +1,4 @@
-// TODO [FE2-17a] @Luka — TypeScript tipovi za Celinu 2
-// ============================================================
+﻿// ============================================================
 // Tipovi za Banka 2025 - Celina 2: Osnovno poslovanje banke
 // ============================================================
 
@@ -377,3 +376,5 @@ export interface VerificationRequest {
   transactionId: number;
   code: string;
 }
+
+

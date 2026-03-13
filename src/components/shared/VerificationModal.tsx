@@ -1,4 +1,3 @@
-// TODO [FE2-19a] @Luka — Komponenta: Modal za verifikaciju transakcije (OTP)
 //
 // Reusable modal komponenta za verifikaciju placanja i prenosa.
 // - Prikazuje input za OTP kod (4-6 cifara)
@@ -9,7 +8,17 @@
 // - Limit: max 3 neuspesna pokusaja, nakon toga transakcija se otkazuje
 // - Error handling za nevalidan/istekao kod
 // - Spec: "Verifikacija transakcije" iz Celine 2
-// TODO [FE2-19a] @Luka — Integracija sa mobilnim flow-om potvrde transakcije (status approve/reject)
+
+import { useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'react-toastify';
+import { transactionService } from '@/services/transactionService';
+import { verificationSchema, type VerificationFormData } from '@/utils/validationSchemas.celina2';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface VerificationModalProps {
   transactionId: number | null;
@@ -24,42 +33,156 @@ export default function VerificationModal({
   onClose,
   onSuccess,
 }: VerificationModalProps) {
-  // TODO [FE2-19a] @Luka — Setup forme i stanja
-  // useForm<VerificationFormData>({ resolver: zodResolver(verificationSchema) })
-  // useState za loading, error, countdown, attemptsLeft
-  // useEffect za countdown timer (5 min)
-  // Kada attemptsLeft padne na 0 -> auto-cancel pending transakcije + close modal
+  const [secondsLeft, setSecondsLeft] = useState(300);
+  const [attemptsLeft, setAttemptsLeft] = useState(3);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState('');
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<VerificationFormData>({
+    resolver: zodResolver(verificationSchema),
+    defaultValues: { code: '' },
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setSecondsLeft(300);
+    setAttemptsLeft(3);
+    setServerError('');
+    reset({ code: '' });
+  }, [isOpen, transactionId, reset]);
+
+  useEffect(() => {
+    if (!isOpen || secondsLeft <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setSecondsLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isOpen, secondsLeft]);
+
+  const formattedTime = useMemo(() => {
+    const min = Math.floor(secondsLeft / 60)
+      .toString()
+      .padStart(2, '0');
+    const sec = (secondsLeft % 60).toString().padStart(2, '0');
+    return `${min}:${sec}`;
+  }, [secondsLeft]);
+
+  const closeWithReset = () => {
+    setServerError('');
+    reset({ code: '' });
+    onClose();
+  };
+
+  const onSubmit = async (data: VerificationFormData) => {
+    if (!transactionId) return;
+    if (secondsLeft === 0) {
+      setServerError('Kod je istekao. Pokrenite verifikaciju ponovo.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setServerError('');
+    try {
+      await transactionService.verifyPayment({ transactionId, code: data.code });
+      toast.success('Transakcija je uspešno verifikovana.');
+      reset({ code: '' });
+      onSuccess();
+      onClose();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      const msg = error.response?.data?.message || 'Kod nije validan. Pokušajte ponovo.';
+
+      setAttemptsLeft((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next === 0) {
+          toast.error('Maksimalan broj pokušaja je dostignut. Transakcija je otkazana.');
+          closeWithReset();
+        }
+        return next;
+      });
+
+      setServerError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResend = () => {
+    if (secondsLeft > 0) return;
+    setSecondsLeft(300);
+    setAttemptsLeft(3);
+    setServerError('');
+    reset({ code: '' });
+    toast.info('Novi verifikacioni prozor je pokrenut (5 min).');
+  };
 
   if (!isOpen || !transactionId) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-background rounded-lg p-6 w-full max-w-md shadow-lg">
-        <h2 className="text-xl font-bold mb-4">Verifikacija transakcije</h2>
+        <h2 className="text-xl font-bold mb-1">Verifikacija transakcije</h2>
+        <p className="text-sm text-muted-foreground mb-4">Unesite kod sa mobilne potvrde.</p>
 
-        {/* TODO [FE2-19a] @Luka — OTP forma
-            - Tekst: "Unesite verifikacioni kod koji ste dobili"
-            - Input za kod (4-6 cifara, centered, large font)
-            - Error poruka ispod inputa
-            - Dugme "Potvrdi" => submit
-            - Link "Posalji ponovo" (disabled dok countdown traje)
-              - Prikazati: "Posaljite ponovo za Xs"
-            - Prikazati preostale pokusaje: "Preostalo pokusaja: 3/2/1"
-            - Po 3 neuspesna pokusaja prikazati poruku o automatskom otkazivanju
+        {serverError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{serverError}</AlertDescription>
+          </Alert>
+        )}
 
-            Submit handler:
-            - transactionService.verifyPayment({ transactionId, code })
-            - Na uspeh: onSuccess()
-            - Na gresku: prikazati error (nevalidan kod, istekao, itd) */}
-        <p className="text-muted-foreground">Implementirati verifikacionu formu...</p>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="otp">OTP kod</Label>
+            <Input
+              {...register('code')}
+              id="otp"
+              inputMode="numeric"
+              placeholder="Unesite kod (4-6 cifara)"
+              className={errors.code ? 'border-destructive text-center' : 'text-center'}
+            />
+            {errors.code && <p className="text-sm text-destructive">{errors.code.message}</p>}
+          </div>
 
-        {/* TODO [FE2-19a] @Luka — Footer dugmad
-            - "Otkazi" => onClose()
-            - "Potvrdi" => submit forme */}
-        <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-4 py-2">Otkaži</button>
-        </div>
+          <div className="rounded-md border p-3 text-sm space-y-1">
+            <p>
+              Kod važi još: <span className="font-semibold">{formattedTime}</span>
+            </p>
+            <p>
+              Preostalo pokušaja: <span className="font-semibold">{attemptsLeft}</span>
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={secondsLeft > 0}
+              className="text-primary disabled:text-muted-foreground"
+            >
+              {secondsLeft > 0 ? `Pošalji ponovo za ${secondsLeft}s` : 'Pošalji ponovo'}
+            </button>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button type="button" variant="outline" onClick={closeWithReset}>
+              Otkaži
+            </Button>
+            <Button type="submit" disabled={isSubmitting || attemptsLeft === 0 || secondsLeft === 0}>
+              {isSubmitting ? 'Provera...' : 'Potvrdi'}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
+
+

@@ -1,8 +1,7 @@
-import api from './api';
+﻿import api from './api';
 import type { ClientFilters } from '../types/celina2';
 import type { PaginatedResponse, Client } from '../types';
 
-// TODO [FE2-17b] @Luka — API servisi za Celinu 2
 // FIXME: Potvrditi endpoint-e sa backend timom kad budu gotovi
 
 export const clientService = {
@@ -39,3 +38,5 @@ export const clientService = {
     return response.data;
   },
 };
+
+

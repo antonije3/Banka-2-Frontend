@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (data: LoginRequest) => {
-    // MOCK LOGIN — odkomentarisati za lokalno testiranje bez backend-a
+    // MOCK LOGIN - odkomentarisati za lokalno testiranje bez backend-a
     // Kredencijali: test@test.test / test (sve permisije)
     // if (data.email === 'test@test.test' && data.password === 'test') {
     //   const mockUser: AuthUser = {
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ADMIN role daje ADMIN permisiju za pristup admin stranicama
     const permissions: Permission[] = payload.role === 'ADMIN' ? [Permission.ADMIN] : [];
 
-    // Izvlačimo ime iz email-a (marko.petrovic@banka.rs → Marko Petrovic)
+    // Izvlačimo ime iz email-a (marko.petrovic@banka.rs -> Marko Petrovic)
     const emailName = payload.sub.split('@')[0];
     const nameParts = emailName.split('.');
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -122,3 +122,4 @@ export function useAuth() {
   }
   return context;
 }
+

@@ -1,7 +1,6 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 import { phoneSchema, nameSchema, emailSchema } from './validationSchemas';
 
-// TODO [FE2-17c] @Luka — Zod validacione seme za Celinu 2
 
 // ============================================================
 // Validacione seme za Banka 2025 - Celina 2: Osnovno poslovanje
@@ -21,8 +20,7 @@ const positiveAmountSchema = z
 const paymentCodeSchema = z
   .string()
   .min(1, 'Sifra placanja je obavezna')
-  .regex(/^[12]\d{2}$/, 'Sifra placanja mora biti u formatu 2xx ili 1xx');
-// TODO [FE2-17c] @Luka — Uskladiti online placanja na striktno 2xx (trenutno dozvoljava i 1xx)
+  .regex(/^2\d{2}$/, 'Sifra placanja mora biti u formatu 2xx');
 
 // --- Novo placanje ---
 
@@ -150,26 +148,77 @@ export type LoanApplicationFormData = z.infer<typeof loanApplicationSchema>;
 
 // --- Kreiranje racuna (employee) ---
 
-export const createAccountSchema = z.object({
-  ownerEmail: emailSchema,
-  accountType: z.enum(['TEKUCI', 'DEVIZNI', 'POSLOVNI'], { message: 'Izaberite tip racuna' }),
-  accountSubtype: z.string().optional(),
-  currency: z.string().min(1, 'Izaberite valutu'),
-  initialDeposit: z.number().min(0, 'Depozit ne moze biti negativan').optional(),
-  createCard: z.boolean().optional(),
-  // Polja za poslovni racun - firma
-  companyName: z.string().optional(),
-  registrationNumber: z.string().optional(),
-  taxId: z.string().optional(),
-  activityCode: z
-    .string()
-    .regex(/^\d{2}\.\d{2}$/, 'Format mora biti xx.xx (npr. 62.01)')
-    .optional()
-    .or(z.literal('')),
-  firmAddress: z.string().optional(),
-  firmCity: z.string().optional(),
-  firmCountry: z.string().optional(),
-});
+const personalSubtypes = ['STANDARDNI', 'STEDNI', 'PENZIONERSKI', 'ZA_MLADE', 'STUDENTSKI', 'ZA_NEZAPOSLENE'];
+const businessSubtypes = ['DOO', 'AD', 'FONDACIJA'];
+const foreignCurrencies = ['EUR', 'CHF', 'USD', 'GBP', 'JPY', 'CAD', 'AUD'];
+
+export const createAccountSchema = z
+  .object({
+    ownerEmail: emailSchema,
+    accountType: z.enum(['TEKUCI', 'DEVIZNI', 'POSLOVNI'], { message: 'Izaberite tip racuna' }),
+    accountSubtype: z.string().min(1, 'Izaberite podvrstu racuna'),
+    currency: z.string().min(1, 'Izaberite valutu'),
+    initialDeposit: z.number().min(0, 'Depozit ne moze biti negativan').optional(),
+    createCard: z.boolean().optional(),
+    // Polja za poslovni racun - firma
+    companyName: z.string().optional(),
+    registrationNumber: z.string().optional(),
+    taxId: z.string().optional(),
+    activityCode: z
+      .string()
+      .regex(/^\d{2}\.\d{2}$/, 'Format mora biti xx.xx (npr. 62.01)')
+      .optional()
+      .or(z.literal('')),
+    firmAddress: z.string().optional(),
+    firmCity: z.string().optional(),
+    firmCountry: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.accountType === 'TEKUCI') {
+      if (!personalSubtypes.includes(data.accountSubtype)) {
+        ctx.addIssue({ code: 'custom', path: ['accountSubtype'], message: 'Neispravna podvrsta za tekuci racun' });
+      }
+      if (data.currency !== 'RSD') {
+        ctx.addIssue({ code: 'custom', path: ['currency'], message: 'Tekuci racun moze biti samo u RSD valuti' });
+      }
+    }
+
+    if (data.accountType === 'DEVIZNI') {
+      if (!personalSubtypes.includes(data.accountSubtype)) {
+        ctx.addIssue({ code: 'custom', path: ['accountSubtype'], message: 'Neispravna podvrsta za devizni racun' });
+      }
+      if (!foreignCurrencies.includes(data.currency)) {
+        ctx.addIssue({ code: 'custom', path: ['currency'], message: 'Devizni racun podrzava samo strane valute' });
+      }
+    }
+
+    if (data.accountType === 'POSLOVNI') {
+      if (!businessSubtypes.includes(data.accountSubtype)) {
+        ctx.addIssue({ code: 'custom', path: ['accountSubtype'], message: 'Neispravna podvrsta za poslovni racun' });
+      }
+      if (!data.companyName?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['companyName'], message: 'Naziv firme je obavezan' });
+      }
+      if (!data.registrationNumber?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['registrationNumber'], message: 'Maticni broj je obavezan' });
+      }
+      if (!data.taxId?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['taxId'], message: 'PIB je obavezan' });
+      }
+      if (!data.activityCode?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['activityCode'], message: 'Sifra delatnosti je obavezna' });
+      }
+      if (!data.firmAddress?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['firmAddress'], message: 'Adresa firme je obavezna' });
+      }
+      if (!data.firmCity?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['firmCity'], message: 'Grad firme je obavezan' });
+      }
+      if (!data.firmCountry?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['firmCountry'], message: 'Drzava firme je obavezna' });
+      }
+    }
+  });
 export type CreateAccountFormData = z.infer<typeof createAccountSchema>;
 
 // --- Izmena klijenta (employee portal) ---
@@ -206,3 +255,5 @@ export const transactionFilterSchema = z.object({
   amountMax: z.number().optional(),
 });
 export type TransactionFilterFormData = z.infer<typeof transactionFilterSchema>;
+
+

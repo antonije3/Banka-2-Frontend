@@ -41,7 +41,7 @@ const features = [
     icon: <Lock className="h-6 w-6" />,
     title: 'Sistem permisija',
     description:
-      'Granularna kontrola pristupa — od osnovnih bankarskih operacija do administratorskih funkcija.',
+      'Granularna kontrola pristupa - od osnovnih bankarskih operacija do administratorskih funkcija.',
   },
   {
     icon: <Landmark className="h-6 w-6" />,
@@ -75,8 +75,12 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="mx-auto max-w-6xl px-6 py-20 text-center sm:py-28">
-        <div className="mx-auto max-w-3xl space-y-6">
+      <section className="relative mx-auto max-w-6xl px-6 py-20 text-center sm:py-28">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[url('/landing_page_bg.png')] bg-center bg-no-repeat bg-contain opacity-25"
+        />
+        <div className="relative mx-auto max-w-3xl space-y-6">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
             <Landmark className="h-8 w-8 text-white" />
           </div>
@@ -86,7 +90,7 @@ export default function LandingPage() {
             <span className="text-indigo-300">na dohvat ruke</span>
           </h1>
           <p className="mx-auto max-w-xl text-lg text-indigo-200">
-            Platforma za upravljanje bankarskim poslovanjem — od korisničkih naloga
+            Platforma za upravljanje bankarskim poslovanjem - od korisničkih naloga
             i transakcija do trgovine hartijama od vrednosti.
           </p>
           <div className="flex items-center justify-center gap-4 pt-4">
@@ -180,7 +184,7 @@ export default function LandingPage() {
               </span>
             </div>
             <p className="text-xs text-indigo-400">
-              Softversko inženjerstvo — Računarski fakultet, 2025/26
+              Softversko inženjerstvo - Računarski fakultet, 2025/26
             </p>
           </div>
         </div>
@@ -188,3 +192,4 @@ export default function LandingPage() {
     </div>
   );
 }
+

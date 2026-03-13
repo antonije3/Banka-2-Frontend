@@ -25,7 +25,7 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-// TODO [FE2-18c] @Antonije — Navbar: Dodati navigaciju za sve Celina 2 stranice
+// TODO [FE2-18c] @Antonije - Navbar: Dodati navigaciju za sve Celina 2 stranice
 const navItems: NavItem[] = [
   // Klijentske stavke
   {
@@ -192,3 +192,4 @@ export default function Navbar() {
     </header>
   );
 }
+

@@ -1,4 +1,4 @@
-// TODO [FE2-03a] @Jovan — Detaljan prikaz racuna - licni
+// TODO [FE2-03a] @Jovan - Detaljan prikaz racuna - licni
 //
 // Ova stranica prikazuje detalje jednog racuna (tekuci ili devizni).
 // - useParams() za accountId iz URL-a
@@ -11,63 +11,247 @@
 // - Dugme za promenu limita (accountService.changeLimit, schema: accountLimitSchema)
 //   => modal sa dnevni limit i mesecni limit, zahteva verifikaciju (VerificationModal)
 
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { accountService } from '@/services/accountService';
+import { transactionService } from '@/services/transactionService';
+import type { Account, Transaction } from '@/types/celina2';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+function statusClass(status: string): string {
+  if (status === 'ACTIVE') return 'bg-green-100 text-green-700';
+  if (status === 'BLOCKED') return 'bg-red-100 text-red-700';
+  return 'bg-muted text-muted-foreground';
+}
+
+function formatAccountNumber(accountNumber: string): string {
+  if (accountNumber.length !== 18) return accountNumber;
+  return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 7)}-${accountNumber.slice(7, 16)}-${accountNumber.slice(16)}`;
+}
 
 export default function AccountDetailsPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [account, setAccount] = useState<Account | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [renameValue, setRenameValue] = useState('');
+  const [dailyLimit, setDailyLimit] = useState('');
+  const [monthlyLimit, setMonthlyLimit] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [isSavingLimits, setIsSavingLimits] = useState(false);
 
-  // TODO [FE2-03a] @Jovan — Fetch racun i transakcije
-  // accountService.getById(Number(id))
-  // transactionService.getAll({ accountNumber: account.accountNumber, limit: 10 })
+  useEffect(() => {
+    const accountId = Number(id);
+    if (!accountId || Number.isNaN(accountId)) {
+      setLoading(false);
+      return;
+    }
+
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const accountData = await accountService.getById(accountId);
+        setAccount(accountData);
+        setRenameValue(accountData.name || '');
+        setDailyLimit(String(accountData.dailyLimit));
+        setMonthlyLimit(String(accountData.monthlyLimit));
+
+        const transactionsResponse = await transactionService.getAll({
+          accountNumber: accountData.accountNumber,
+          page: 0,
+          limit: 10,
+        });
+        setTransactions(transactionsResponse.content);
+      } catch {
+        toast.error('Neuspešno učitavanje detalja računa.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [id]);
+
+  const dailyProgress = useMemo(() => {
+    if (!account || account.dailyLimit <= 0) return 0;
+    return Math.min(100, (account.dailySpending / account.dailyLimit) * 100);
+  }, [account]);
+
+  const monthlyProgress = useMemo(() => {
+    if (!account || account.monthlyLimit <= 0) return 0;
+    return Math.min(100, (account.monthlySpending / account.monthlyLimit) * 100);
+  }, [account]);
+
+  const saveName = async () => {
+    if (!account) return;
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast.error('Naziv računa ne sme biti prazan.');
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      const updated = await accountService.updateName(account.id, newName);
+      setAccount(updated);
+      toast.success('Naziv računa je uspešno promenjen.');
+    } catch {
+      toast.error('Promena naziva nije uspela.');
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
+  const saveLimits = async () => {
+    if (!account) return;
+    const parsedDaily = Number(dailyLimit);
+    const parsedMonthly = Number(monthlyLimit);
+    if (Number.isNaN(parsedDaily) || Number.isNaN(parsedMonthly) || parsedDaily < 0 || parsedMonthly < 0) {
+      toast.error('Limiti moraju biti nenegativni brojevi.');
+      return;
+    }
+
+    setIsSavingLimits(true);
+    try {
+      await accountService.changeLimit(account.id, {
+        dailyLimit: parsedDaily,
+        monthlyLimit: parsedMonthly,
+      });
+      setAccount({ ...account, dailyLimit: parsedDaily, monthlyLimit: parsedMonthly });
+      toast.success('Limiti su uspešno sačuvani.');
+    } catch {
+      toast.error('Promena limita nije uspela.');
+    } finally {
+      setIsSavingLimits(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      {/* TODO [FE2-03a] @Jovan — Header sa info o racunu
-          - Naziv racuna (editable inline ili modal)
-          - Broj racuna formatiran (XXX-XXXX-XXXXXXXXX-XX)
-          - Tip racuna badge
-          - Status badge */}
-      <div>
-        <h1 className="text-3xl font-bold">Detalji računa</h1>
-        <p className="text-muted-foreground">ID: {id}</p>
-      </div>
+      {loading || !account ? (
+        <p className="text-muted-foreground">Učitavanje detalja računa...</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold">{account.name || 'Detalji računa'}</h1>
+            <span className={`px-2 py-1 rounded text-xs font-medium ${statusClass(account.status)}`}>{account.status}</span>
+            <span className="px-2 py-1 rounded text-xs bg-muted">{account.accountType}</span>
+          </div>
+          <p className="text-muted-foreground">{formatAccountNumber(account.accountNumber)}</p>
 
-      {/* TODO [FE2-03a] @Jovan — Kartica sa stanjem
-          - Stanje (balance) velikim fontom
-          - Raspolozivo stanje (availableBalance)
-          - Rezervisana sredstva (reservedBalance)
-          - Valuta
-          - Podvrsta racuna (accountSubtype) */}
-      <section>
-        <p className="text-muted-foreground">Implementirati prikaz stanja...</p>
-      </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Stanje računa</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 md:grid-cols-2 text-sm">
+              <p>Stanje: <span className="font-medium">{account.balance.toFixed(2)} {account.currency}</span></p>
+              <p>Raspoloživo: <span className="font-medium">{account.availableBalance.toFixed(2)} {account.currency}</span></p>
+              <p>Rezervisano: <span className="font-medium">{account.reservedBalance.toFixed(2)} {account.currency}</span></p>
+              <p>Podvrsta: <span className="font-medium">{account.accountSubtype || '-'}</span></p>
+            </CardContent>
+          </Card>
 
-      {/* TODO [FE2-03a] @Jovan — Limiti racuna
-          - Dnevni limit / Dnevna potrosnja (dailyLimit / dailySpending)
-          - Mesecni limit / Mesecna potrosnja (monthlyLimit / monthlySpending)
-          - Progress bar za potrosnju vs limit
-          - Dugme "Promeni limit" => modal sa accountLimitSchema
-            => accountService.changeLimit(id, { dailyLimit, monthlyLimit })
-            => zahteva verifikaciju (VerificationModal) */}
-      <section>
-        <p className="text-muted-foreground">Implementirati prikaz limita...</p>
-      </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Limiti i potrošnja</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <p>Dnevni limit / potrošnja: {account.dailyLimit.toFixed(2)} / {account.dailySpending.toFixed(2)} {account.currency}</p>
+                <progress className="w-full h-2" max={100} value={dailyProgress} />
+              </div>
+              <div>
+                <p>Mesečni limit / potrošnja: {account.monthlyLimit.toFixed(2)} / {account.monthlySpending.toFixed(2)} {account.currency}</p>
+                <progress className="w-full h-2" max={100} value={monthlyProgress} />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="dailyLimit">Novi dnevni limit</Label>
+                  <Input id="dailyLimit" type="number" value={dailyLimit} onChange={(e) => setDailyLimit(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="monthlyLimit">Novi mesečni limit</Label>
+                  <Input id="monthlyLimit" type="number" value={monthlyLimit} onChange={(e) => setMonthlyLimit(e.target.value)} />
+                </div>
+              </div>
+              <Button onClick={saveLimits} disabled={isSavingLimits}>
+                {isSavingLimits ? 'Čuvanje...' : 'Sačuvaj limite'}
+              </Button>
+            </CardContent>
+          </Card>
 
-      {/* TODO [FE2-03a] @Jovan — Akcije
-          - Dugme: Novo placanje (navigate to /payments/new?from=accountNumber)
-          - Dugme: Prenos (navigate to /transfers?from=accountNumber)
-          - Dugme: Promeni naziv (otvara modal, accountRenameSchema, accountService.updateName) */}
-      <section>
-        <p className="text-muted-foreground">Implementirati akcije...</p>
-      </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Akcije</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Novi naziv računa" />
+                <Button onClick={saveName} disabled={isSavingName}>{isSavingName ? 'Čuvanje...' : 'Promeni naziv'}</Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => navigate(`/payments/new?from=${account.accountNumber}`)}>
+                  Novo plaćanje
+                </Button>
+                <Button variant="outline" onClick={() => navigate(`/transfers?from=${account.accountNumber}`)}>
+                  Prenos
+                </Button>
+                <Button variant="outline" onClick={() => navigate(`/payments/history?account=${account.accountNumber}`)}>
+                  Vidi sve transakcije
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* TODO [FE2-03a] @Jovan — Poslednje transakcije za ovaj racun
-          - Tabela: datum, opis, primalac/posiljalac, iznos (+/-), status
-          - Link "Vidi sve" => /payments/history?account=accountNumber */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Poslednje transakcije</h2>
-        <p className="text-muted-foreground">Implementirati listu transakcija...</p>
-      </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Poslednje transakcije</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {transactions.length === 0 ? (
+                <p className="text-muted-foreground">Nema transakcija za ovaj račun.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2">Datum</th>
+                        <th className="text-left py-2">Opis</th>
+                        <th className="text-left py-2">Primalac/pošiljalac</th>
+                        <th className="text-left py-2">Iznos</th>
+                        <th className="text-left py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactions.map((transaction) => {
+                        const counterparty =
+                          transaction.fromAccountNumber === account.accountNumber
+                            ? transaction.toAccountNumber
+                            : transaction.fromAccountNumber;
+                        return (
+                          <tr key={transaction.id} className="border-b">
+                            <td className="py-2">{new Date(transaction.createdAt).toLocaleString('sr-RS')}</td>
+                            <td className="py-2">{transaction.description || transaction.paymentPurpose}</td>
+                            <td className="py-2">{counterparty}</td>
+                            <td className="py-2">{transaction.amount.toFixed(2)} {transaction.currency}</td>
+                            <td className="py-2">{transaction.status}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
+

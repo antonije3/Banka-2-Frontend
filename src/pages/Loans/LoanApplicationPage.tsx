@@ -1,4 +1,3 @@
-// TODO [FE2-12a] @Luka — Krediti: Forma za zahtev
 //
 // Ova stranica sadrzi formu za podnoscenje zahteva za kredit.
 // - react-hook-form + zodResolver(loanApplicationSchema)
@@ -9,51 +8,323 @@
 // - Submit: creditService.apply(data)
 // - Spec: "Zahtev za kredit" iz Celine 2
 
-export default function LoanApplicationPage() {
-  // TODO [FE2-12a] @Luka — Setup forme
-  // useForm<LoanApplicationFormData>({ resolver: zodResolver(loanApplicationSchema) })
-  // accountService.getMyAccounts() za dropdown racuna
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'react-toastify';
+import { accountService } from '@/services/accountService';
+import { creditService } from '@/services/creditService';
+import type { Account, Currency } from '@/types/celina2';
+import {
+  REPAYMENT_PERIODS,
+  loanApplicationSchema,
+  type LoanApplicationFormData,
+} from '@/utils/validationSchemas.celina2';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-  // TODO [FE2-12a] @Luka — Kalkulacija (live preview)
-  // watch('amount'), watch('repaymentPeriod') => izracunati mesecnu ratu
-  // Formula: amount * (rate * (1+rate)^n) / ((1+rate)^n - 1) gde je n=period, rate=godisnja/12
+export default function LoanApplicationPage() {
+  const navigate = useNavigate();
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<LoanApplicationFormData>({
+    resolver: zodResolver(loanApplicationSchema),
+    defaultValues: {
+      loanType: 'GOTOVINSKI',
+      interestRateType: 'FIKSNI',
+      amount: 0,
+      currency: 'RSD',
+      loanPurpose: '',
+      repaymentPeriod: 12,
+      accountNumber: '',
+      phoneNumber: '',
+      employmentStatus: '',
+      monthlyIncome: undefined,
+      permanentEmployment: false,
+      employmentPeriod: undefined,
+    },
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const loadAccounts = async () => {
+      setIsLoadingAccounts(true);
+      try {
+        const myAccounts = await accountService.getMyAccounts();
+        if (!mounted) return;
+        setAccounts(myAccounts);
+        if (myAccounts.length > 0) {
+          setValue('accountNumber', myAccounts[0].accountNumber);
+          setValue('currency', myAccounts[0].currency);
+        }
+      } catch {
+        if (!mounted) return;
+        toast.error('Neuspešno učitavanje računa.');
+      } finally {
+        if (mounted) setIsLoadingAccounts(false);
+      }
+    };
+
+    loadAccounts();
+    return () => {
+      mounted = false;
+    };
+  }, [setValue]);
+
+  const selectedLoanType = watch('loanType');
+  const selectedCurrency = watch('currency') as Currency;
+  const amount = watch('amount') || 0;
+  const repaymentPeriod = watch('repaymentPeriod') || 0;
+
+  const repaymentOptions = useMemo(() => {
+    return REPAYMENT_PERIODS[selectedLoanType] ?? [];
+  }, [selectedLoanType]);
+
+  useEffect(() => {
+    if (!repaymentOptions.includes(repaymentPeriod as never) && repaymentOptions.length > 0) {
+      setValue('repaymentPeriod', repaymentOptions[0]);
+    }
+  }, [repaymentOptions, repaymentPeriod, setValue]);
+
+  const filteredAccounts = useMemo(
+    () => accounts.filter((account) => account.currency === selectedCurrency),
+    [accounts, selectedCurrency]
+  );
+
+  useEffect(() => {
+    if (!filteredAccounts.some((a) => a.accountNumber === watch('accountNumber'))) {
+      setValue('accountNumber', filteredAccounts[0]?.accountNumber || '');
+    }
+  }, [filteredAccounts, setValue, watch]);
+
+  const annualRate = useMemo(() => {
+    if (amount <= 500000) return 6.25;
+    if (amount <= 1000000) return 6.0;
+    if (amount <= 2000000) return 5.75;
+    if (amount <= 5000000) return 5.5;
+    if (amount <= 10000000) return 5.25;
+    if (amount <= 20000000) return 5.0;
+    return 4.75;
+  }, [amount]);
+
+  const monthlyPayment = useMemo(() => {
+    if (!amount || !repaymentPeriod || repaymentPeriod <= 0) return 0;
+    const monthlyRate = annualRate / 100 / 12;
+    if (monthlyRate === 0) return amount / repaymentPeriod;
+
+    const numerator = amount * monthlyRate * Math.pow(1 + monthlyRate, repaymentPeriod);
+    const denominator = Math.pow(1 + monthlyRate, repaymentPeriod) - 1;
+    return denominator === 0 ? 0 : numerator / denominator;
+  }, [amount, annualRate, repaymentPeriod]);
+
+  const totalRepayment = useMemo(() => monthlyPayment * (repaymentPeriod || 0), [monthlyPayment, repaymentPeriod]);
+
+  const onSubmit = async (data: LoanApplicationFormData) => {
+    setIsSubmitting(true);
+    try {
+      await creditService.apply({
+        loanType: data.loanType,
+        interestRateType: data.interestRateType,
+        amount: data.amount,
+        currency: data.currency as Currency,
+        loanPurpose: data.loanPurpose,
+        repaymentPeriod: data.repaymentPeriod,
+        accountNumber: data.accountNumber,
+        phoneNumber: data.phoneNumber,
+        employmentStatus: data.employmentStatus || undefined,
+        monthlyIncome: data.monthlyIncome,
+        permanentEmployment: data.permanentEmployment,
+        employmentPeriod: data.employmentPeriod,
+      });
+      toast.success('Zahtev za kredit je uspešno poslat.');
+      navigate('/loans');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Slanje zahteva nije uspelo.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 max-w-2xl">
       <h1 className="text-3xl font-bold mb-6">Zahtev za kredit</h1>
 
-      {/* TODO [FE2-12a] @Luka — Forma za kredit
-          Polja:
-          1. Tip kredita - Select (GOTOVINSKI, STAMBENI, AUTO, STUDENTSKI, REFINANSIRAJUCI)
-          2. Tip kamate - Select (FIKSNI, VARIJABILNI) - InterestRateType
-          3. Iznos - Input number
-          4. Valuta - Select (RSD, EUR, CHF, USD)
-          5. Svrha kredita - Textarea (loanPurpose, obavezno)
-          6. Period otplate - Select DROPDOWN (ne slobodan unos!)
-             => Koristiti REPAYMENT_PERIODS[loanType] za opcije
-             => GOTOVINSKI/AUTO/REFINANSIRAJUCI: 12,24,36,48,60,72,84
-             => STAMBENI: 60,120,180,240,300,360
-             => STUDENTSKI: 12,24,36,48,60
-             => Dinamicki menjati opcije kad se promeni tip kredita (watch('loanType'))
-          7. Racun za isplatu - Select (moji racuni)
-          8. Kontakt telefon - Input
+      <Card>
+        <CardHeader>
+          <CardTitle>Podaci zahteva</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="loanType">Tip kredita</Label>
+                <select
+                  id="loanType"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('loanType')}
+                >
+                  <option value="GOTOVINSKI">Gotovinski</option>
+                  <option value="STAMBENI">Stambeni</option>
+                  <option value="AUTO">Auto</option>
+                  <option value="STUDENTSKI">Studentski</option>
+                  <option value="REFINANSIRAJUCI">Refinansirajući</option>
+                </select>
+              </div>
 
-          Opciona polja (accordion/collapsible):
-          9. Status zaposlenja - Input
-          10. Mesecni prihod - Input number
-          11. Stalni radni odnos - Checkbox/Switch
-          12. Period zaposlenja (meseci) - Input number
+              <div className="space-y-2">
+                <Label htmlFor="interestRateType">Tip kamate</Label>
+                <select
+                  id="interestRateType"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('interestRateType')}
+                >
+                  <option value="FIKSNI">Fiksni</option>
+                  <option value="VARIJABILNI">Varijabilni</option>
+                </select>
+              </div>
+            </div>
 
-          Submit: creditService.apply(data) => success toast + navigate('/loans') */}
-      <form className="space-y-6">
-        <p className="text-muted-foreground">Implementirati formu za kredit...</p>
-      </form>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Iznos</Label>
+                <Input id="amount" type="number" step="0.01" {...register('amount', { valueAsNumber: true })} />
+                {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currency">Valuta</Label>
+                <select
+                  id="currency"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('currency')}
+                >
+                  <option value="RSD">RSD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="CHF">CHF</option>
+                  <option value="USD">USD</option>
+                </select>
+                {errors.currency && <p className="text-sm text-destructive">{errors.currency.message}</p>}
+              </div>
+            </div>
 
-      {/* TODO [FE2-12a] @Luka — Preview kalkulacije (sidebar card)
-          - Mesecna rata: X RSD
-          - Ukupan iznos za vracanje: Y RSD
-          - Kamatna stopa: Z%
-          - Azurira se live dok korisnik menja iznos i period */}
+            <div className="space-y-2">
+              <Label htmlFor="loanPurpose">Svrha kredita</Label>
+              <textarea
+                id="loanPurpose"
+                className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                {...register('loanPurpose')}
+              />
+              {errors.loanPurpose && <p className="text-sm text-destructive">{errors.loanPurpose.message}</p>}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="repaymentPeriod">Period otplate (meseci)</Label>
+                <select
+                  id="repaymentPeriod"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('repaymentPeriod', { valueAsNumber: true })}
+                >
+                  {repaymentOptions.map((period) => (
+                    <option key={period} value={period}>
+                      {period}
+                    </option>
+                  ))}
+                </select>
+                {errors.repaymentPeriod && <p className="text-sm text-destructive">{errors.repaymentPeriod.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountNumber">Račun za isplatu</Label>
+                <select
+                  id="accountNumber"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register('accountNumber')}
+                  disabled={isLoadingAccounts}
+                >
+                  <option value="">Izaberite račun</option>
+                  {filteredAccounts.map((account) => (
+                    <option key={account.id} value={account.accountNumber}>
+                      {account.accountNumber} | {account.currency}
+                    </option>
+                  ))}
+                </select>
+                {errors.accountNumber && <p className="text-sm text-destructive">{errors.accountNumber.message}</p>}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Kontakt telefon</Label>
+                <Input id="phoneNumber" {...register('phoneNumber')} placeholder="+3816xxxxxxx" />
+                {errors.phoneNumber && <p className="text-sm text-destructive">{errors.phoneNumber.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employmentStatus">Status zaposlenja</Label>
+                <Input id="employmentStatus" {...register('employmentStatus')} placeholder="stalno/privremeno" />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="monthlyIncome">Mesečni prihod</Label>
+                <Input
+                  id="monthlyIncome"
+                  type="number"
+                  step="0.01"
+                  {...register('monthlyIncome', {
+                    setValueAs: (value) => (value === '' ? undefined : Number(value)),
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employmentPeriod">Period zaposlenja (meseci)</Label>
+                <Input
+                  id="employmentPeriod"
+                  type="number"
+                  {...register('employmentPeriod', {
+                    setValueAs: (value) => (value === '' ? undefined : Number(value)),
+                  })}
+                />
+              </div>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" {...register('permanentEmployment')} />
+              Stalni radni odnos
+            </label>
+
+            <div className="rounded-md border p-4 text-sm space-y-1">
+              <p>
+                Godišnja kamatna stopa (simulacija): <span className="font-semibold">{annualRate.toFixed(2)}%</span>
+              </p>
+              <p>
+                Mesečna rata: <span className="font-semibold">{monthlyPayment.toFixed(2)} {selectedCurrency}</span>
+              </p>
+              <p>
+                Ukupno za vraćanje: <span className="font-semibold">{totalRepayment.toFixed(2)} {selectedCurrency}</span>
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Slanje...' : 'Pošalji zahtev'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+

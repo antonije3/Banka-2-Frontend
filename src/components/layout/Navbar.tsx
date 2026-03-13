@@ -1,5 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Landmark, Home, Users, LogOut, User, Sun, Moon, Monitor } from 'lucide-react';
+import {
+  Landmark, Home, Users, LogOut, User, Sun, Moon, Monitor,
+  Wallet, CreditCard, ArrowLeftRight, RefreshCw, Receipt, BookUser,
+  Building2, ShieldCheck, FileText,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/button';
@@ -21,16 +25,67 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
+// TODO [FE2-18c] @Antonije — Navbar: Dodati navigaciju za sve Celina 2 stranice
 const navItems: NavItem[] = [
+  // Klijentske stavke
   {
     label: 'Početna',
-    path: '/dashboard',
+    path: '/home',
     icon: <Home className="mr-1.5 h-4 w-4" />,
   },
+  {
+    label: 'Računi',
+    path: '/accounts',
+    icon: <Wallet className="mr-1.5 h-4 w-4" />,
+  },
+  {
+    label: 'Plaćanja',
+    path: '/payments/new',
+    icon: <Receipt className="mr-1.5 h-4 w-4" />,
+  },
+  {
+    label: 'Prenosi',
+    path: '/transfers',
+    icon: <ArrowLeftRight className="mr-1.5 h-4 w-4" />,
+  },
+  {
+    label: 'Menjačnica',
+    path: '/exchange',
+    icon: <RefreshCw className="mr-1.5 h-4 w-4" />,
+  },
+  {
+    label: 'Kartice',
+    path: '/cards',
+    icon: <CreditCard className="mr-1.5 h-4 w-4" />,
+  },
+  {
+    label: 'Krediti',
+    path: '/loans',
+    icon: <FileText className="mr-1.5 h-4 w-4" />,
+  },
+  // Employee/Admin stavke
   {
     label: 'Zaposleni',
     path: '/admin/employees',
     icon: <Users className="mr-1.5 h-4 w-4" />,
+    adminOnly: true,
+  },
+  {
+    label: 'Portal računa',
+    path: '/employee/accounts',
+    icon: <Building2 className="mr-1.5 h-4 w-4" />,
+    adminOnly: true,
+  },
+  {
+    label: 'Portal klijenata',
+    path: '/employee/clients',
+    icon: <BookUser className="mr-1.5 h-4 w-4" />,
+    adminOnly: true,
+  },
+  {
+    label: 'Zahtevi',
+    path: '/employee/loan-requests',
+    icon: <ShieldCheck className="mr-1.5 h-4 w-4" />,
     adminOnly: true,
   },
 ];
@@ -52,7 +107,7 @@ export default function Navbar() {
   };
 
   const isActive = (path: string) => {
-    if (path === '/dashboard') return location.pathname === '/dashboard';
+    if (path === '/home') return location.pathname === '/home';
     return location.pathname.startsWith(path);
   };
 
@@ -61,7 +116,7 @@ export default function Navbar() {
       <div className="container flex h-14 items-center">
         <div
           className="flex cursor-pointer items-center gap-2 font-bold mr-6"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/home')}
         >
           <Landmark className="h-5 w-5" />
           <span className="text-lg">Banka 2025</span>

@@ -1,3 +1,6 @@
+// TODO [FE2-18a] @Luka — Routing za klijentske stranice
+// TODO [FE2-18b] @Luka — Routing za employee portale
+// TODO [FE2-18b] @Luka — Uskladiti route alias-e sa sprint tabelom
 import { Routes, Route } from 'react-router-dom';
 
 import MainLayout from './components/layout/MainLayout';
@@ -15,36 +18,101 @@ import NotFoundPage from './pages/Error/NotFoundPage';
 import ForbiddenPage from './pages/Error/ForbiddenPage';
 import ServerErrorPage from './pages/Error/ServerErrorPage';
 
+// Celina 2 - Klijentske stranice
+import HomePage from './pages/HomePage/HomePage';
+import AccountListPage from './pages/Accounts/AccountListPage';
+import AccountDetailsPage from './pages/Accounts/AccountDetailsPage';
+import BusinessAccountDetailsPage from './pages/Accounts/BusinessAccountDetailsPage';
+import NewPaymentPage from './pages/Payments/NewPaymentPage';
+import PaymentHistoryPage from './pages/Payments/PaymentHistoryPage';
+import RecipientsPage from './pages/Payments/RecipientsPage';
+import TransferPage from './pages/Transfers/TransferPage';
+import TransferHistoryPage from './pages/Transfers/TransferHistoryPage';
+import ExchangePage from './pages/Exchange/ExchangePage';
+import CardListPage from './pages/Cards/CardListPage';
+import LoanListPage from './pages/Loans/LoanListPage';
+import LoanApplicationPage from './pages/Loans/LoanApplicationPage';
+
+// Celina 2 - Employee portal stranice
+import CreateAccountPage from './pages/Employee/CreateAccountPage';
+import AccountsPortalPage from './pages/Employee/AccountsPortalPage';
+import AccountCardsPage from './pages/Employee/AccountCardsPage';
+import ClientsPortalPage from './pages/Employee/ClientsPortalPage';
+import LoanRequestsPage from './pages/Employee/LoanRequestsPage';
+import AllLoansPage from './pages/Employee/AllLoansPage';
+
 export default function App() {
   return (
     <Routes>
+      {/* Javne rute */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/activate-account" element={<ActivateAccountPage />} />
 
+      {/* Error stranice */}
       <Route path="/403" element={<ForbiddenPage />} />
       <Route path="/500" element={<ServerErrorPage />} />
 
+      {/* Zasticene rute - zahtevaju login */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
+          {/* Dashboard (legacy, moze se preusmeriti na /home) */}
+          <Route path="/dashboard" element={<DashboardPage />} />
+
+          {/* Celina 2 - Klijentske rute */}
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/accounts" element={<AccountListPage />} />
+          <Route path="/accounts/:id" element={<AccountDetailsPage />} />
+          <Route path="/accounts/:id/business" element={<BusinessAccountDetailsPage />} />
+          <Route path="/payments/new" element={<NewPaymentPage />} />
+          <Route path="/payments/history" element={<PaymentHistoryPage />} />
+          <Route path="/payments/recipients" element={<RecipientsPage />} />
+          <Route path="/transfers" element={<TransferPage />} />
+          <Route path="/transfers/history" element={<TransferHistoryPage />} />
+          <Route path="/exchange" element={<ExchangePage />} />
+          <Route path="/cards" element={<CardListPage />} />
+          <Route path="/loans" element={<LoanListPage />} />
+          <Route path="/loans/apply" element={<LoanApplicationPage />} />
+
+          {/* Admin rute - Celina 1 (zaposleni CRUD) */}
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees" element={<EmployeeListPage />} />
           </Route>
-
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees/new" element={<EmployeeCreatePage />} />
           </Route>
-
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin/employees/:id" element={<EmployeeEditPage />} />
           </Route>
 
-          <Route path="/dashboard" element={<DashboardPage />} />
+          {/* Employee portal rute - Celina 2 */}
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/accounts" element={<AccountsPortalPage />} />
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/accounts/new" element={<CreateAccountPage />} />
+            {/* TODO [FE2-18b] @Luka — Dodati alias /employee/create-account koji vodi na isti ekran */}
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/cards" element={<AccountCardsPage />} />
+            {/* TODO [FE2-18b] @Luka — Dodati route /employee/accounts/:id/cards (spec/task parity) */}
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/clients" element={<ClientsPortalPage />} />
+            {/* TODO [FE2-18b] @Luka — Dodati route /employee/clients/:id (spec/task parity) */}
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/loan-requests" element={<LoanRequestsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/loans" element={<AllLoansPage />} />
+          </Route>
         </Route>
       </Route>
 
+      {/* 404 catch-all */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

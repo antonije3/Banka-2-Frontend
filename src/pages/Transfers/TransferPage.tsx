@@ -1,7 +1,6 @@
 // TODO [FE2-05a] @Elena - Prenosi: Forma za prenos izmedju racuna
 // TODO [FE2-05b] @Elena - Prenosi: Verifikacija prenosa
-// TODO [FE2-08a] @Antonije - Transferi: Kreiranje transfera
-// TODO [FE2-08b] @Antonije - Transferi: Istorija i prikaz kursa/provizije
+
 //
 // Ova stranica omogucava prenos sredstava izmedju sopstvenih racuna.
 // - Forma: izaberi racun posiljaoca, izaberi racun primaoca, iznos

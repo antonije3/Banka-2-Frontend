@@ -1,6 +1,3 @@
-// TODO [FE2-10a] @Marta - Kartice: Lista kartica korisnika
-// TODO [FE2-10b] @Marta - Kartice: Akcije (blokiranje, deblokiranje, deaktivacija, limit)
-//
 // Ova stranica prikazuje sve kartice ulogovanog korisnika.
 // - cardService.getMyCards() za fetch
 // - Kartice prikazati vizuelno (card-like UI sa brojem, tipom, statusom)

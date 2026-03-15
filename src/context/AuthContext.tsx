@@ -79,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: emailName,
       firstName: nameParts[0] ? capitalize(nameParts[0]) : '',
       lastName: nameParts[1] ? capitalize(nameParts[1]) : '',
+      role: payload.role,
       permissions,
     };
 

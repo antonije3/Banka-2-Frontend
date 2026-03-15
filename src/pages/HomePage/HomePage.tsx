@@ -1,7 +1,3 @@
-// TODO [FE2-01a] @Marta - Pocetna strana: Pregled racuna i poslednjih 5 transakcija
-// TODO [FE2-01b] @Marta - Pocetna strana: Brzo placanje widget
-// TODO [FE2-01c] @Marta - Pocetna strana: Kursna lista widget
-//
 // Ova stranica je glavna strana nakon logina. Prikazuje:
 // 1. Listu korisnikovih racuna sa stanjem (accountService.getMyAccounts)
 // 2. Poslednjih 5 transakcija (transactionService.getAll sa limit=5)

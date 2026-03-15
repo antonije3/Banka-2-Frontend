@@ -15,10 +15,22 @@ import {
   Building2,
   ShieldCheck,
   Users,
+  LogOut,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/button';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 
 
 
@@ -29,7 +41,8 @@ interface SidebarItem {
 }
 
 export default function ClientSidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
 
   const permissions = Array.isArray((user as { permissions?: unknown[] } | null)?.permissions)
@@ -38,8 +51,8 @@ export default function ClientSidebar() {
 
   const role = String(
     (user as { role?: string; userType?: string } | null)?.role ??
-      (user as { role?: string; userType?: string } | null)?.userType ??
-      ''
+    (user as { role?: string; userType?: string } | null)?.userType ??
+    ''
   ).toUpperCase();
 
   const isEmployeeOrAdmin =
@@ -47,6 +60,19 @@ export default function ClientSidebar() {
     permissions.includes('EMPLOYEE') ||
     role === 'ADMIN' ||
     role === 'EMPLOYEE';
+
+  const getInitials = () => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
+    }
+    return '?';
+  };
+
+  const getRoleName = () => {
+    if (role === 'ADMIN') return 'Administrator';
+    if (role === 'EMPLOYEE') return 'Zaposleni';
+    return 'Klijent';
+  };
 
   const clientLinks: SidebarItem[] = useMemo(
     () => [
@@ -103,7 +129,7 @@ export default function ClientSidebar() {
 
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-64 border-r bg-muted/40 p-4 transition-transform md:sticky md:top-0 md:block md:min-h-screen md:translate-x-0',
+          'fixed left-0 top-0 z-50 h-full w-64 border-r bg-muted/40 p-4 transition-transform md:sticky md:top-0 md:block md:min-h-screen md:translate-x-0 flex flex-col',
           open ? 'translate-x-0' : '-translate-x-full',
           'md:transform-none'
         )}
@@ -121,7 +147,23 @@ export default function ClientSidebar() {
           </Button>
         </div>
 
-        <nav className="space-y-6">
+        {/* User Profile Section */}
+        <div className="mb-6 flex items-center gap-3 rounded-lg border bg-background p-3">
+          <Avatar className="h-12 w-12">
+            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+              {getInitials()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground">{getRoleName()}</p>
+          </div>
+        </div>
+
+        {/* Navigation and Theme */}
+        <nav className="flex-1 space-y-6 overflow-y-auto">
           <div className="space-y-2">
             <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Moje finansije
@@ -164,7 +206,48 @@ export default function ClientSidebar() {
             </div>
           )}
         </nav>
-      </aside>
+
+        {/* Theme Selector and Logout */}
+        <div className="space-y-2 border-t pt-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full justify-start">
+                {theme === 'light' && <Sun className="mr-2 h-4 w-4" />}
+                {theme === 'dark' && <Moon className="mr-2 h-4 w-4" />}
+                {theme === 'system' && <Monitor className="mr-2 h-4 w-4" />}
+                <span className="text-xs">{theme === 'system' ? 'Sistem' : theme === 'light' ? 'Svetlo' : 'Tamno'}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setTheme('light')}>
+                <Sun className="mr-2 h-4 w-4" />
+                Svetlo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')}>
+                <Moon className="mr-2 h-4 w-4" />
+                Tamno
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')}>
+                <Monitor className="mr-2 h-4 w-4" />
+                Sistem
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => {
+              logout();
+              setOpen(false);
+            }}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Odjavi se
+          </Button>
+        </div>
+      </aside >
     </>
   );
 }

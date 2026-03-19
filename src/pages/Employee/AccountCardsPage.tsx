@@ -14,7 +14,7 @@ import {
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { cardService } from '@/services/cardService';
-import type { Account, CardType, Card as BankCard, NewCardRequest } from '@/types/celina2';
+import type { Account, CardType, Card as BankCard } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';

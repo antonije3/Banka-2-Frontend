@@ -42,12 +42,18 @@ const accountTypeLabels: Record<string, string> = {
   TEKUCI: 'Tekuci',
   DEVIZNI: 'Devizni',
   POSLOVNI: 'Poslovni',
+  CHECKING: 'Tekuci',
+  FOREIGN: 'Devizni',
+  BUSINESS: 'Poslovni',
 };
 
 const accountTypeBadgeVariant: Record<string, 'info' | 'success' | 'warning'> = {
   TEKUCI: 'info',
   DEVIZNI: 'success',
   POSLOVNI: 'warning',
+  CHECKING: 'info',
+  FOREIGN: 'success',
+  BUSINESS: 'warning',
 };
 
 const transactionStatusLabels: Record<string, string> = {

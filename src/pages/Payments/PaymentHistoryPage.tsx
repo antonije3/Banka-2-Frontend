@@ -187,28 +187,62 @@ export default function PaymentHistoryPage() {
     setExpandedId((prev) => (prev === transactionId ? null : transactionId));
   };
 
-  const printTransaction = (tx: Transaction) => {
+  const printTransaction = (tx: Record<string, unknown>) => {
     try {
       const doc = new jsPDF();
+      const s = (v: unknown) => (v != null && v !== '' ? String(v) : '-');
+      const a = (v: unknown) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+      };
 
-      doc.setFontSize(18);
-      doc.text(`Potvrda transakcije #${tx.id}`, 14, 20);
+      // Header with gradient bar
+      doc.setFillColor(99, 102, 241); // indigo-500
+      doc.rect(0, 0, 210, 40, 'F');
+      doc.setFillColor(124, 58, 237); // violet-600
+      doc.rect(105, 0, 105, 40, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.text('BANKA 2025', 14, 18);
+      doc.setFontSize(10);
+      doc.text('TIM 2', 14, 26);
+      doc.setFontSize(14);
+      doc.text('Potvrda transakcije', 14, 35);
 
-      doc.setFontSize(12);
-      doc.text(`Datum: ${formatDateTime(tx.createdAt)}`, 14, 35);
-      doc.text(`Sa racuna: ${tx.fromAccountNumber}`, 14, 45);
-      doc.text(`Na racun: ${tx.toAccountNumber}`, 14, 55);
-      doc.text(`Iznos: ${formatAmount(tx.amount)} ${tx.currency}`, 14, 65);
-      doc.text(`Status: ${tx.status}`, 14, 75);
-      doc.text(`Svrha: ${tx.paymentPurpose || '-'}`, 14, 85);
-      doc.text(`Opis: ${tx.description || '-'}`, 14, 95);
-      doc.text(`Primalac: ${tx.recipientName || '-'}`, 14, 105);
-      doc.text(`Sifra placanja: ${tx.paymentCode || '-'}`, 14, 115);
-      doc.text(`Referentni broj: ${tx.referenceNumber || '-'}`, 14, 125);
-      doc.text(`Model: ${tx.model || '-'}`, 14, 135);
-      doc.text(`Poziv na broj: ${tx.callNumber || '-'}`, 14, 145);
+      // Body
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(11);
+      let y = 55;
+      const line = (label: string, value: string) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 14, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, y);
+        y += 10;
+      };
 
-      doc.save(`potvrda-transakcije-${tx.id}.pdf`);
+      line('Broj naloga:', s(tx.orderNumber || tx.id));
+      line('Datum:', s(tx.createdAt));
+      line('Sa racuna:', s(tx.fromAccount || tx.fromAccountNumber));
+      line('Na racun:', s(tx.toAccount || tx.toAccountNumber));
+      line('Iznos:', `${a(tx.amount)} ${s(tx.currency)}`);
+      line('Status:', s(tx.status));
+      line('Smer:', s(tx.direction));
+      if (tx.description || tx.recipientName || tx.paymentPurpose) {
+        line('Opis:', s(tx.description || tx.paymentPurpose || tx.recipientName));
+      }
+
+      // Footer line
+      y += 10;
+      doc.setDrawColor(99, 102, 241);
+      doc.setLineWidth(0.5);
+      doc.line(14, y, 196, y);
+      y += 8;
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Generisano automatski od strane sistema Banka 2025 Tim 2.', 14, y);
+
+      doc.save(`potvrda-${tx.id || 'transakcije'}.pdf`);
     } catch {
       toast.error('Neuspesno generisanje PDF potvrde.');
     }

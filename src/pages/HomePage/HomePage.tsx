@@ -285,8 +285,8 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Accounts */}
-      <section>
+      {/* Accounts — only for clients */}
+      {!isAdmin && <section>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Wallet className="h-5 w-5 text-primary" />
@@ -337,8 +337,10 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Recent transactions */}
-      <section>
+      }
+
+      {/* Recent transactions — only for clients */}
+      {!isAdmin && <section>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5 text-primary" />
@@ -410,8 +412,10 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Quick payment + exchange in 2 columns */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      }
+
+      {/* Quick payment + exchange in 2 columns — only for clients */}
+      {!isAdmin && <div className="grid gap-6 lg:grid-cols-2">
         {/* Quick payment */}
         <section>
           <div className="flex items-center gap-2 mb-4">
@@ -516,7 +520,7 @@ export default function HomePage() {
             </Card>
           )}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }

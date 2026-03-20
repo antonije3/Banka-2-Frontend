@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from '@/lib/notify';
+import { useAuth } from '@/context/AuthContext';
 import { cardService } from '@/services/cardService';
 import type { Card } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 export default function CardListPage() {
+  const { isAdmin } = useAuth();
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingCardId, setProcessingCardId] = useState<number | null>(null);
@@ -180,11 +182,11 @@ export default function CardListPage() {
           {asArray<Card>(cards).map((card) => (
             <div key={card.id} className="rounded-xl overflow-hidden shadow-lg">
               {/* Credit card face */}
-              <div className={`relative p-6 ${cardGradient(card.cardType)} min-h-[220px] flex flex-col justify-between`}>
+              <div className={`relative p-6 ${cardGradient((card as Record<string, unknown>).cardName as string || card.cardType || 'VISA')} min-h-[220px] flex flex-col justify-between`}>
                 {/* Top row: type + status */}
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-bold tracking-wide drop-shadow-sm">
-                    {card.cardType}
+                    {(card as Record<string, unknown>).cardName as string || card.cardType || 'Visa Debit'}
                   </span>
                   <Badge
                     variant={statusBadgeVariant(card.status)}
@@ -203,7 +205,7 @@ export default function CardListPage() {
                 <div className="flex justify-between items-end text-sm">
                   <div className="space-y-0.5">
                     <p className="text-[11px] uppercase opacity-75">Vlasnik</p>
-                    <p className="font-medium">{card.holderName}</p>
+                    <p className="font-medium">{(card as Record<string, unknown>).ownerName as string || card.holderName || '-'}</p>
                   </div>
                   <div className="text-right space-y-0.5">
                     <p className="text-[11px] uppercase opacity-75">Istek</p>
@@ -225,7 +227,7 @@ export default function CardListPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Limit</span>
-                  <span className="font-medium">{formatAmount(card.limit)} RSD</span>
+                  <span className="font-medium">{formatAmount((card as Record<string, unknown>).cardLimit as number ?? card.limit)} RSD</span>
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2 border-t">
@@ -241,7 +243,7 @@ export default function CardListPage() {
                       Blokiraj
                     </Button>
                   )}
-                  {card.status === 'BLOCKED' && (
+                  {card.status === 'BLOCKED' && isAdmin && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -252,6 +254,9 @@ export default function CardListPage() {
                       {processingCardId === card.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                       Deblokiraj
                     </Button>
+                  )}
+                  {card.status === 'BLOCKED' && !isAdmin && (
+                    <p className="text-xs text-muted-foreground py-1">Kontaktirajte banku za deblokiranje.</p>
                   )}
                   {card.status !== 'DEACTIVATED' && (
                     <>
@@ -264,6 +269,7 @@ export default function CardListPage() {
                       >
                         Promeni limit
                       </Button>
+                      {isAdmin && (
                       <Button
                         variant="destructive"
                         size="sm"
@@ -273,6 +279,7 @@ export default function CardListPage() {
                       >
                         Deaktiviraj
                       </Button>
+                      )}
                     </>
                   )}
                 </div>

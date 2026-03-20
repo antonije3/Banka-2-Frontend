@@ -247,16 +247,16 @@ export default function TransferPage() {
     setIsSubmitting(true);
 
     try {
+      // Auto-detect: if currencies differ, server-side routes to FX
       const transfer = await transactionService.createTransfer({
         fromAccountNumber: submittedData.fromAccountNumber,
         toAccountNumber: submittedData.toAccountNumber,
         amount: Number(submittedData.amount),
       });
 
-      setPendingTransactionId(transfer.id);
       setShowConfirmStep(false);
-      setShowVerification(true);
-      toast.info('Prenos je kreiran. Potrebna je verifikacija.');
+      toast.success('Prenos je uspešno izvršen!');
+      navigate('/accounts');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Kreiranje prenosa nije uspelo.'));
     } finally {

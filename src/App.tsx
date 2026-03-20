@@ -36,6 +36,8 @@ import AccountCardsPage from './pages/Employee/AccountCardsPage';
 import ClientsPortalPage from './pages/Employee/ClientsPortalPage';
 import LoanRequestsPage from './pages/Employee/LoanRequestsPage';
 import AllLoansPage from './pages/Employee/AllLoansPage';
+import AccountRequestsPage from './pages/Employee/AccountRequestsPage';
+import CardRequestsPage from './pages/Employee/CardRequestsPage';
 
 export default function App() {
   return (
@@ -98,6 +100,12 @@ export default function App() {
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/clients" element={<ClientsPortalPage />} />
             <Route path="/employee/clients/:id" element={<ClientsPortalPage />} />
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/account-requests" element={<AccountRequestsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute adminOnly />}>
+            <Route path="/employee/card-requests" element={<CardRequestsPage />} />
           </Route>
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/employee/loan-requests" element={<LoanRequestsPage />} />

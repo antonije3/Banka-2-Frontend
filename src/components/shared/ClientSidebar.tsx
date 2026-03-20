@@ -76,7 +76,6 @@ export default function ClientSidebar() {
 
   const clientLinks: SidebarItem[] = useMemo(
     () => [
-      { label: 'Početna', path: '/home', icon: <Home className="h-4 w-4" /> },
       { label: 'Računi', path: '/accounts', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Plaćanja', path: '/payments/new', icon: <Receipt className="h-4 w-4" /> },
       { label: 'Primaoci', path: '/payments/recipients', icon: <BookUser className="h-4 w-4" /> },
@@ -92,7 +91,9 @@ export default function ClientSidebar() {
   const employeeLinks: SidebarItem[] = useMemo(
     () => [
       { label: 'Portal računa', path: '/employee/accounts', icon: <Building2 className="h-4 w-4" /> },
+      { label: 'Zahtevi za račune', path: '/employee/account-requests', icon: <Wallet className="h-4 w-4" /> },
       { label: 'Portal kartica', path: '/employee/cards', icon: <CreditCard className="h-4 w-4" /> },
+      { label: 'Zahtevi za kartice', path: '/employee/card-requests', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Portal klijenata', path: '/employee/clients', icon: <Users className="h-4 w-4" /> },
       { label: 'Zahtevi za kredit', path: '/employee/loan-requests', icon: <ShieldCheck className="h-4 w-4" /> },
       { label: 'Svi krediti', path: '/employee/loans', icon: <FileText className="h-4 w-4" /> },
@@ -164,7 +165,6 @@ export default function ClientSidebar() {
 
         {/* Navigation and Theme */}
         <nav className="flex-1 space-y-6 overflow-y-auto">
-          {isEmployeeOrAdmin && (
           <div className="space-y-1 mb-2">
             <NavLink
               to="/home"
@@ -175,7 +175,6 @@ export default function ClientSidebar() {
               <span>Početna</span>
             </NavLink>
           </div>
-          )}
 
           {!isEmployeeOrAdmin && (
           <div className="space-y-2">

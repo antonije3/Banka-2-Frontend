@@ -66,7 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // JWT sadrži: sub (email), role (ADMIN/CLIENT), active
     // ADMIN role daje ADMIN permisiju za pristup admin stranicama
-    const permissions: Permission[] = payload.role === 'ADMIN' ? [Permission.ADMIN] : [];
+    const permissions: Permission[] = [];
+    if (payload.role === 'ADMIN') permissions.push(Permission.ADMIN);
+    if (payload.role === 'EMPLOYEE') permissions.push(Permission.ADMIN); // Employee ima iste portale kao admin
 
     // Izvlačimo ime iz email-a (marko.petrovic@banka.rs -> Marko Petrovic)
     const emailName = payload.sub.split('@')[0];
@@ -97,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.permissions.includes(permission);
   };
 
-  const isAdmin = user?.permissions.includes(Permission.ADMIN) ?? false;
+  const isAdmin = user?.permissions?.includes(Permission.ADMIN) || user?.role === 'ADMIN' || user?.role === 'EMPLOYEE' ? true : false;
 
   return (
     <AuthContext.Provider

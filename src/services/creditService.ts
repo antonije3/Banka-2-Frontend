@@ -32,7 +32,21 @@ export const creditService = {
   },
 
   apply: async (data: LoanApplicationRequest): Promise<LoanRequest> => {
-    const response = await api.post<LoanRequest>('/loans', data);
+    // Mapiranje FE enum vrednosti -> BE enum vrednosti
+    const loanTypeMap: Record<string, string> = {
+      GOTOVINSKI: 'CASH', STAMBENI: 'MORTGAGE', AUTO: 'AUTO',
+      STUDENTSKI: 'STUDENT', REFINANSIRAJUCI: 'REFINANCING',
+      CASH: 'CASH', MORTGAGE: 'MORTGAGE', REFINANCING: 'REFINANCING', STUDENT: 'STUDENT',
+    };
+    const interestTypeMap: Record<string, string> = {
+      FIKSNI: 'FIXED', VARIJABILNI: 'VARIABLE', FIXED: 'FIXED', VARIABLE: 'VARIABLE',
+    };
+    const payload = {
+      ...data,
+      loanType: loanTypeMap[data.loanType] || data.loanType,
+      interestType: interestTypeMap[data.interestRateType] || data.interestRateType,
+    };
+    const response = await api.post<LoanRequest>('/loans', payload);
     return response.data;
   },
 

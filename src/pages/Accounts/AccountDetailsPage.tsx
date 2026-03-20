@@ -69,7 +69,8 @@ function formatBalance(amount: number | null | undefined, currency: string): str
   return `${n.toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || ''}`;
 }
 
-function formatAccountNumber(accountNumber: string): string {
+function formatAccountNumber(accountNumber: string | null | undefined): string {
+  if (!accountNumber) return '-';
   if (accountNumber.length !== 18) return accountNumber;
   return `${accountNumber.slice(0, 3)}-${accountNumber.slice(3, 16)}-${accountNumber.slice(16)}`;
 }
@@ -101,7 +102,17 @@ export default function AccountDetailsPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const accountData = await accountService.getById(accountId);
+        const raw = await accountService.getById(accountId);
+        const accountData = {
+          ...raw,
+          currency: raw.currency || (raw as unknown as Record<string, unknown>).currencyCode || 'RSD',
+          availableBalance: Number(raw.availableBalance) || 0,
+          balance: Number(raw.balance) || 0,
+          dailyLimit: Number(raw.dailyLimit) || 0,
+          monthlyLimit: Number(raw.monthlyLimit) || 0,
+          dailySpending: Number(raw.dailySpending) || 0,
+          monthlySpending: Number(raw.monthlySpending) || 0,
+        } as Account;
         setAccount(accountData);
         setRenameValue(accountData.name || '');
         setDailyLimit(String(accountData.dailyLimit));
@@ -112,7 +123,18 @@ export default function AccountDetailsPage() {
           page: 0,
           limit: 10,
         });
-        setTransactions(Array.isArray(transactionsResponse.content) ? transactionsResponse.content : []);
+        const rawTx = Array.isArray(transactionsResponse.content) ? transactionsResponse.content : [];
+        // Mapiranje BE polja -> FE polja (fromAccount -> fromAccountNumber, itd.)
+        setTransactions(rawTx.map((tx) => {
+          const t = tx as unknown as Record<string, unknown>;
+          return {
+            ...tx,
+            fromAccountNumber: tx.fromAccountNumber || (t.fromAccount as string) || '',
+            toAccountNumber: tx.toAccountNumber || (t.toAccount as string) || '',
+            paymentPurpose: tx.paymentPurpose || (t.description as string) || '',
+            currency: tx.currency || (t.currency as string) || 'RSD',
+          };
+        }));
       } catch {
         toast.error('Greska pri ucitavanju detalja racuna.');
       } finally {

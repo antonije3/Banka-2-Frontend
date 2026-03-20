@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { BookUser, Inbox } from 'lucide-react';
+import { BookUser, Inbox, UserPlus } from 'lucide-react';
 import { toast } from '@/lib/notify';
 import { accountService } from '@/services/accountService';
 import { clientService } from '@/services/clientService';
@@ -95,6 +95,9 @@ export default function ClientsPortalPage() {
   const [clientAccounts, setClientAccounts] = useState<Account[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState>(emptyEditForm);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState<EditFormState & { password: string }>({ ...emptyEditForm, password: '' });
+  const [creating, setCreating] = useState(false);
 
   const selectedClientId = useMemo(() => {
     const parsed = Number(id);
@@ -140,8 +143,11 @@ export default function ClientsPortalPage() {
   };
 
   const loadClientAccounts = async (clientId: number) => {
-    const accounts = await accountService.getByClientId(clientId);
-    return asArray<Account>(accounts);
+    const raw = await accountService.getByClientId(clientId);
+    return asArray<Account>(raw).map((a) => ({
+      ...a,
+      currency: a.currency || (a as unknown as Record<string, unknown>).currencyCode || 'RSD',
+    })) as Account[];
   };
 
   const loadClientFromRoute = async (clientId: number) => {
@@ -175,6 +181,39 @@ export default function ClientsPortalPage() {
     (field: keyof EditFormState) => (e: ChangeEvent<HTMLInputElement>) => {
       const { value } = e.target;
       setEditForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+  const handleCreateClient = async () => {
+    if (!createForm.firstName || !createForm.lastName || !createForm.email || !createForm.password) {
+      toast.error('Popunite obavezna polja (ime, prezime, email, lozinka).');
+      return;
+    }
+    setCreating(true);
+    try {
+      await clientService.create({
+        firstName: createForm.firstName,
+        lastName: createForm.lastName,
+        email: createForm.email,
+        phoneNumber: createForm.phoneNumber || undefined,
+        address: createForm.address || undefined,
+        dateOfBirth: createForm.dateOfBirth || undefined,
+        gender: createForm.gender || undefined,
+        password: createForm.password,
+      });
+      toast.success('Klijent uspešno kreiran.');
+      setShowCreateForm(false);
+      setCreateForm({ ...emptyEditForm, password: '' });
+      await loadClients();
+    } catch (error) {
+      toast.error(getErrorMessage('Kreiranje klijenta nije uspelo.', error));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateFieldChange =
+    (field: string) => (e: ChangeEvent<HTMLInputElement>) => {
+      setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
     };
 
   const handleStartEdit = () => {
@@ -250,13 +289,81 @@ export default function ClientsPortalPage() {
 
   return (
     <div className="container mx-auto space-y-6 py-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <BookUser className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight">Portal klijenata</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <BookUser className="h-6 w-6 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Portal klijenata</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Pretrazujte, pregledajte i uredujte podatke klijenata.</p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Pretrazujte, pregledajte i uredujte podatke klijenata.</p>
+        {!showCreateForm && (
+          <Button
+            onClick={() => setShowCreateForm(true)}
+            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Novi klijent
+          </Button>
+        )}
       </div>
+
+      {/* Kreiranje novog klijenta */}
+      {showCreateForm && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Novi klijent</CardTitle>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setShowCreateForm(false)}>Otkaži</Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Ime *</Label>
+                <Input value={createForm.firstName} onChange={handleCreateFieldChange('firstName')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Prezime *</Label>
+                <Input value={createForm.lastName} onChange={handleCreateFieldChange('lastName')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input type="email" value={createForm.email} onChange={handleCreateFieldChange('email')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Lozinka *</Label>
+                <Input type="password" value={createForm.password} onChange={handleCreateFieldChange('password')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefon</Label>
+                <Input value={createForm.phoneNumber} onChange={handleCreateFieldChange('phoneNumber')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Adresa</Label>
+                <Input value={createForm.address} onChange={handleCreateFieldChange('address')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Datum rodjenja</Label>
+                <Input type="date" value={createForm.dateOfBirth} onChange={handleCreateFieldChange('dateOfBirth')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Pol</Label>
+                <Input value={createForm.gender} onChange={handleCreateFieldChange('gender')} placeholder="M / F" />
+              </div>
+            </div>
+            <Button
+              onClick={handleCreateClient}
+              disabled={creating}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              {creating ? 'Kreiranje...' : 'Kreiraj klijenta'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -7,8 +7,12 @@ import type {
 
 export const paymentRecipientService = {
   getAll: async (): Promise<PaymentRecipient[]> => {
-    const response = await api.get<PaymentRecipient[]>('/payment-recipients');
-    return response.data;
+    const response = await api.get('/payment-recipients');
+    const data = response.data;
+    // Backend vraca paginated {content: [...]} ili plain niz
+    if (data && Array.isArray(data.content)) return data.content;
+    if (Array.isArray(data)) return data;
+    return [];
   },
 
   getById: async (id: number): Promise<PaymentRecipient> => {

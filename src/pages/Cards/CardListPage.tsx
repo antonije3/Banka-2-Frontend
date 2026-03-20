@@ -16,11 +16,17 @@ import { useEffect, useState } from 'react';
 import { toast } from '@/lib/notify';
 import { useAuth } from '@/context/AuthContext';
 import { cardService } from '@/services/cardService';
-import type { Card } from '@/types/celina2';
+import { accountService } from '@/services/accountService';
+import type { Card, Account } from '@/types/celina2';
 import { Button } from '@/components/ui/button';
-import { Card as UICard, CardContent } from '@/components/ui/card';
+import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, Loader2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { CreditCard, Loader2, Plus } from 'lucide-react';
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -68,6 +74,11 @@ export default function CardListPage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingCardId, setProcessingCardId] = useState<number | null>(null);
+  const [showNewCard, setShowNewCard] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [newCardLimit, setNewCardLimit] = useState('100000');
+  const [creatingCard, setCreatingCard] = useState(false);
 
   const loadCards = async () => {
     setLoading(true);
@@ -84,7 +95,33 @@ export default function CardListPage() {
 
   useEffect(() => {
     loadCards();
+    accountService.getMyAccounts().then((data) => {
+      setAccounts(Array.isArray(data) ? data : []);
+    }).catch(() => setAccounts([]));
   }, []);
+
+  const handleCreateCard = async () => {
+    if (!selectedAccountId) {
+      toast.error('Izaberite račun za karticu.');
+      return;
+    }
+    setCreatingCard(true);
+    try {
+      await cardService.submitRequest({
+        accountId: Number(selectedAccountId),
+        cardLimit: Number(newCardLimit) || 100000,
+      });
+      toast.success('Zahtev za karticu je uspešno podnet! Čeka odobrenje zaposlenog.');
+      setShowNewCard(false);
+      setSelectedAccountId('');
+      setNewCardLimit('100000');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Podnošenje zahteva nije uspelo.');
+    } finally {
+      setCreatingCard(false);
+    }
+  };
 
   const runCardAction = async (cardId: number, action: 'block' | 'unblock' | 'deactivate' | 'limit') => {
     setProcessingCardId(cardId);
@@ -127,15 +164,70 @@ export default function CardListPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <CreditCard className="h-8 w-8" />
-          Moje kartice
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Upravljajte karticama vezanim za vaše račune.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <CreditCard className="h-8 w-8" />
+            Moje kartice
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Upravljajte karticama vezanim za vaše račune.
+          </p>
+        </div>
+        {!isAdmin && !showNewCard && (
+          <Button
+            onClick={() => setShowNewCard(true)}
+            className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nova kartica
+          </Button>
+        )}
       </div>
+
+      {/* New card form */}
+      {showNewCard && (
+        <UICard>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-600" />
+              <CardTitle>Zahtev za novu karticu</CardTitle>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setShowNewCard(false)}>Otkaži</Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Račun *</Label>
+                <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Izaberite račun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter((a) => a.status === 'ACTIVE').map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.name || a.accountType} — {a.accountNumber} ({a.currency || (a as unknown as Record<string, unknown>).currencyCode || 'RSD'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Limit kartice (RSD)</Label>
+                <Input type="number" value={newCardLimit} onChange={(e) => setNewCardLimit(e.target.value)} />
+              </div>
+            </div>
+            <Button
+              onClick={handleCreateCard}
+              disabled={creatingCard || !selectedAccountId}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+            >
+              {creatingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              {creatingCard ? 'Kreiranje...' : 'Kreiraj karticu'}
+            </Button>
+          </CardContent>
+        </UICard>
+      )}
 
       {/* Loading state */}
       {loading ? (

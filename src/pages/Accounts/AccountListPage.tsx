@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '@/lib/notify';
 import {
   SlidersHorizontal,
   ChevronLeft,
@@ -11,8 +12,10 @@ import {
   ArrowDownLeft,
   RotateCcw,
   Wallet,
+  Plus,
 } from 'lucide-react';
 import type { Account, AccountType, Transaction, TransactionStatus, TransactionFilters } from '@/types/celina2';
+import { useAuth } from '@/context/AuthContext';
 import type { PaginatedResponse } from '@/types';
 import { accountService } from '@/services/accountService';
 import { transactionService } from '@/services/transactionService';
@@ -36,6 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const accountTypeLabels: Record<string, string> = {
@@ -88,6 +92,34 @@ function formatDate(dateStr: string): string {
 
 export default function AccountListPage() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+
+  // --- New account form ---
+  const [showNewAccount, setShowNewAccount] = useState(false);
+  const [newAccType, setNewAccType] = useState('CHECKING');
+  const [newAccCurrency, setNewAccCurrency] = useState('RSD');
+  const [newAccDeposit, setNewAccDeposit] = useState('0');
+  const [newAccCard, setNewAccCard] = useState(false);
+  const [creatingAcc, setCreatingAcc] = useState(false);
+
+  const handleCreateAccount = async () => {
+    setCreatingAcc(true);
+    try {
+      await accountService.submitRequest({
+        accountType: newAccType,
+        currency: newAccCurrency,
+        initialDeposit: Number(newAccDeposit) || 0,
+        createCard: newAccCard,
+      });
+      toast.success('Zahtev za otvaranje računa je uspešno podnet! Čeka odobrenje zaposlenog.');
+      setShowNewAccount(false);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Podnošenje zahteva nije uspelo.');
+    } finally {
+      setCreatingAcc(false);
+    }
+  };
 
   // --- Account state ---
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -122,9 +154,17 @@ export default function AccountListPage() {
     setError('');
     try {
       const data = await accountService.getMyAccounts();
-      const safeData = Array.isArray(data) ? data : [];
+      const safeData = (Array.isArray(data) ? data : []).map((a) => ({
+        ...a,
+        currency: a.currency || (a as unknown as Record<string, unknown>).currencyCode || 'RSD',
+        availableBalance: Number(a.availableBalance) || 0,
+        balance: Number(a.balance) || 0,
+        accountType: a.accountType || 'CHECKING',
+        accountNumber: a.accountNumber || '',
+        name: a.name || undefined,
+        status: a.status || 'ACTIVE',
+      })) as Account[];
       setAccounts(safeData);
-      // Auto-select first account by highest balance (matches display sort order)
       if (safeData.length > 0 && selectedAccountId === null) {
         const sorted = [...safeData].sort((a, b) => b.availableBalance - a.availableBalance);
         setSelectedAccountId(sorted[0].id);
@@ -152,7 +192,17 @@ export default function AccountListPage() {
       if (txDateTo) filters.dateTo = txDateTo;
 
       const response: PaginatedResponse<Transaction> = await transactionService.getAll(filters);
-      setTransactions(Array.isArray(response.content) ? response.content : []);
+      const rawTx = Array.isArray(response.content) ? response.content : [];
+      setTransactions(rawTx.map((tx) => {
+        const t = tx as unknown as Record<string, unknown>;
+        return {
+          ...tx,
+          fromAccountNumber: tx.fromAccountNumber || (t.fromAccount as string) || '',
+          toAccountNumber: tx.toAccountNumber || (t.toAccount as string) || '',
+          paymentPurpose: tx.paymentPurpose || (t.description as string) || '',
+          currency: tx.currency || (t.currency as string) || 'RSD',
+        };
+      }));
       setTxTotalElements(response.totalElements ?? 0);
       setTxTotalPages(response.totalPages ?? 0);
     } catch {
@@ -216,6 +266,15 @@ export default function AccountListPage() {
           <p className="mt-1 text-sm text-muted-foreground">Pregled svih računa i transakcija.</p>
         </div>
         <div className="flex items-center gap-2">
+          {!isAdmin && !showNewAccount && (
+            <Button
+              onClick={() => setShowNewAccount(true)}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Novi račun
+            </Button>
+          )}
           <Button
             variant={showFilters ? 'secondary' : 'outline'}
             size="icon"
@@ -226,6 +285,58 @@ export default function AccountListPage() {
           </Button>
         </div>
       </div>
+
+      {/* New account form */}
+      {showNewAccount && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Otvaranje novog računa</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setShowNewAccount(false)}>Otkaži</Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Tip računa</Label>
+                <Select value={newAccType} onValueChange={setNewAccType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CHECKING">Tekući</SelectItem>
+                    <SelectItem value="FOREIGN">Devizni</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Valuta</Label>
+                <Select value={newAccCurrency} onValueChange={setNewAccCurrency}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RSD">RSD</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="CHF">CHF</SelectItem>
+                    <SelectItem value="GBP">GBP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Početni depozit</Label>
+                <Input type="number" value={newAccDeposit} onChange={(e) => setNewAccDeposit(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="createCardCheck" checked={newAccCard} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAccCard(e.target.checked)} title="Kreiraj karticu" />
+              <Label htmlFor="createCardCheck">Kreiraj karticu uz račun</Label>
+            </div>
+            <Button
+              onClick={handleCreateAccount}
+              disabled={creatingAcc}
+              className="bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/20"
+            >
+              {creatingAcc ? 'Kreiranje...' : 'Otvori račun'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Account filters */}
       {showFilters && (
@@ -529,8 +640,8 @@ export default function AccountListPage() {
                             {isOutgoing ? tx.recipientName : (tx.recipientName || '—')}
                             <span className="block text-xs text-muted-foreground">
                               {isOutgoing
-                                ? formatAccountNumber((tx as Record<string, string>).toAccount || tx.toAccountNumber)
-                                : formatAccountNumber((tx as Record<string, string>).fromAccount || tx.fromAccountNumber)}
+                                ? formatAccountNumber((tx as unknown as Record<string, string>).toAccount || tx.toAccountNumber)
+                                : formatAccountNumber((tx as unknown as Record<string, string>).fromAccount || tx.fromAccountNumber)}
                             </span>
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate" title={tx.paymentPurpose}>

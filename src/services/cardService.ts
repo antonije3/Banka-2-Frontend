@@ -32,4 +32,9 @@ export const cardService = {
   changeLimit: async (cardId: number, cardLimit: number): Promise<void> => {
     await api.patch(`/cards/${cardId}/limit`, { cardLimit });
   },
+
+  submitRequest: async (data: { accountId: number; cardLimit?: number }): Promise<unknown> => {
+    const response = await api.post('/cards/requests', data);
+    return response.data;
+  },
 };

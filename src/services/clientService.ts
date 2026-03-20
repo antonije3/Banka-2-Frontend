@@ -20,7 +20,7 @@ export const clientService = {
     return response.data;
   },
 
-  create: async (data: Partial<Client>): Promise<Client> => {
+  create: async (data: Partial<Client> & { password?: string }): Promise<Client> => {
     const response = await api.post<Client>('/clients', data);
     return response.data;
   },

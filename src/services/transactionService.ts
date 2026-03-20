@@ -13,7 +13,19 @@ export const transactionService = {
   // --- Placanja ---
 
   createPayment: async (data: NewPaymentRequest): Promise<Transaction> => {
-    const response = await api.post<Transaction>('/payments', data);
+    // Mapiranje FE polja -> BE polja
+    const payload = {
+      fromAccount: data.fromAccountNumber,
+      toAccount: data.toAccountNumber,
+      amount: data.amount,
+      paymentCode: data.paymentCode,
+      description: data.paymentPurpose,
+      referenceNumber: data.referenceNumber,
+      recipientName: data.recipientName,
+      model: data.model,
+      callNumber: data.callNumber,
+    };
+    const response = await api.post<Transaction>('/payments', payload);
     return response.data;
   },
 
